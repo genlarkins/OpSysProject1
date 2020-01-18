@@ -10,7 +10,8 @@
 //function to check existence of file
 bool exists(const char *fname){
   if(access(fname, F_OK) != -1){
-    printf("%s\n", "file exists");
+    //printf("%s\n", "file exists");
+    return true;
   }
   else {
     return false;
@@ -54,7 +55,7 @@ int main(){
   char * token = strtok(getenv("PATH"), ":");
   //string for concatonated path names
   char * concat = (char *)malloc(sizeof(char)*size);
-
+  //string containing command + args
   char ** cmd = (char **)malloc(sizeof(char)*size);
   //loop through to get all paths
   //if flag is still false, file is not executable
