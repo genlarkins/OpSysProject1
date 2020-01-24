@@ -46,7 +46,7 @@ int main(){
 			strcpy(concat, token);
 			strcat(concat, "/");
 			strcat(concat, userInput);
-			//printf(" %s\n", concat);
+			printf(" %s\n", concat);
 			if(exists(concat) && check_regular(concat)){
 				//strcpy(concat, "");
 				file_flag = true;
@@ -62,7 +62,8 @@ int main(){
       cmd[0] = concat;
       my_execute(cmd);
     }
-	stpcpy(userInput, "");
+    strcpy(userInput, "");
+}
 return 0;		
 }
 char* prompt(){
