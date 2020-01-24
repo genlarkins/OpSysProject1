@@ -31,6 +31,7 @@ int main(){
 	char ** cmd = (char **)malloc(sizeof(char)*size);
 	int counter=0;
 	while(strcmp(userInput, "exit") != 0){
+		strcpy(userInput, "");
 		userInput = prompt();
 		printf("Got the input: %s\n", userInput);
 		//parse input
@@ -62,7 +63,7 @@ int main(){
       cmd[0] = concat;
       my_execute(cmd);
     }
-    strcpy(userInput, "");
+    //strcpy(userInput, "");
 }
 return 0;		
 }
