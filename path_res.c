@@ -46,42 +46,47 @@ void my_execute(char **cmd) {
 }
 
 int main(){
+  //PATH RESOLUTION AND COMMAND EXECUTION
   int size = 4;
   char *PATH_INPUT = (char *)malloc(sizeof(char)*size);
-
-  scanf("%s", PATH_INPUT);
-  //printf("%s\n", getenv("PATH"));
-
   char * token = strtok(getenv("PATH"), ":");
   //string for concatonated path names
   char * concat = (char *)malloc(sizeof(char)*size);
   //string containing command + args
   char ** cmd = (char **)malloc(sizeof(char)*size);
-  //loop through to get all paths
-  //if flag is still false, file is not executable
-  bool file_flag = false;
-  while(token != NULL){
-    //printf( " %s\n", token );
-    //path concatenated with provided pathname
-    strcpy(concat, token);
-    strcat(concat, "/");
-    strcat(concat, PATH_INPUT);
-    //printf(" %s\n", concat);
-    if(exists(concat) && check_regular(concat)){
-      //strcpy(concat, "");
-      file_flag = true;
-      break;
+
+  do {
+    strcpy(PATH_INPUT, "");
+    scanf("%s", PATH_INPUT);
+    //printf("%s\n", getenv("PATH"));
+
+    //loop through to get all paths
+    //if flag is still false, file is not executable
+    bool file_flag = false;
+    while(token != NULL){
+      //printf( " %s\n", token );
+      //path concatenated with provided pathname
+      strcpy(concat, token);
+      strcat(concat, "/");
+      strcat(concat, PATH_INPUT);
+      //printf(" %s\n", concat);
+      if(exists(concat) && check_regular(concat)){
+        //strcpy(concat, "");
+        file_flag = true;
+        break;
+      }  
+      strcpy(concat, "");
+      token = strtok(NULL, ":");
+    } 
+
+    if(!file_flag)
+      printf("%s\n", "File does not exist or is not regular");
+    else {
+      cmd[0] = concat;
+      my_execute(cmd);
     }
-    strcpy(concat, "");
-    token = strtok(NULL, ":");
-  }
+  
+  }while(strcmp(PATH_INPUT, "exit") != 0);  
 
-  if(!file_flag)
-    printf("%s\n", "File does not exist or is not regular");
-  else {
-    cmd[0] = concat;
-    my_execute(cmd);
-  }
-
-return 0;
+ return 0;
 }
