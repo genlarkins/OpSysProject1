@@ -9,28 +9,44 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-char* prompt();
+void prompt(char* input);
 void bgProcess(char* data);
-void checkBGP();
+void checkBGP(int counter);
 void ioRedir1(char* cmd, char* file, int i_o);
 void ioRedir2(char* cmd, char* file_in, char* file_out);
 
+typedef struct {
+	int position;
+	int pid;
+	char* cmd;
+} BGP;
+
 int main(){
-	
 	//prompt user
-	char* userInput= "nothing";
-	while(strcmp(userInput, "exit(1)") != 0){
-		userInput = prompt();
-		printf("Got the input: %s\n", userInput);
-		checkBGP();
-		//parse input
-	}
+	typedef BGP *bgps;
+	char* userInput= malloc(sizeof(char)*50);
+	int counter=0;
+	int bgCount=-1;
 	
+	while(strcmp(userInput, "exit") != 0){
+		prompt(userInput);
+		if(bgCount>-1){
+			checkBGP(bgCOunt);
+		}
+		if(strcmp(userInput,"") != 0){
+			printf("Got the input: %s\n", userInput);
+			//parse input
+			//execute counter++ for every command executed
+		}
+
+	}
+	free(userInput);
+	free(bgps);
+	printf("Exiting now!\n");
 	return 0;
 }
 
-char* prompt(){
-	char* input = calloc(100, sizeof(char));
+void prompt(char* input){
 	char* user = getenv("USER");
 	char* machine = getenv("MACHINE");
 	char* pwd = getenv("PWD");
@@ -38,21 +54,22 @@ char* prompt(){
 	//get the command a user inputs
 	fgets(input, 50, stdin);
 	strtok(input, "\n");
-	return input;
 }
 
 void bgProcess(char* data){
 	pid_t pid = fork();
 	if(pid == -1){
 		//error
-		Exit(1);
+		exit(1);
 	}
 	else if(pid==0){
 		
+	} else {
+		//parent
 	}
 }
-void checkBGP(){
-	printf("Checking if BG process!\n");
+void checkBGP(int counter){
+	
 }
 void ioRedir1(char* cmd, char* file, int i_o){
 	int fd, buff;
