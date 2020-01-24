@@ -73,8 +73,9 @@ char* prompt(){
 	char* pwd = getenv("PWD");
 	printf("%s@%s: %s>", user, machine, pwd);
 	//get the command a user inputs
-	fgets(input, 50, stdin);
-	strtok(input, "\n");
+	scanf("%s", input);
+	//fgets(input, 50, stdin);
+	//strtok(input, "\n");
 	return input;
 }
 
