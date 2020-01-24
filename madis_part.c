@@ -42,7 +42,14 @@ char* prompt(){
 }
 
 void bgProcess(char* data){
-	
+	pid_t pid = fork();
+	if(pid == -1){
+		//error
+		Exit(1);
+	}
+	else if(pid==0){
+		
+	}
 }
 void checkBGP(){
 	printf("Checking if BG process!\n");
