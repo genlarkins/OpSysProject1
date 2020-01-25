@@ -15,10 +15,13 @@ typedef struct {
 
 void addToken(instruction* instr_ptr, char* tok);
 void printTokens(instruction* instr_ptr);
+void getTokens(instruction* instr_ptr, char** cmd);
 void clearInstruction(instruction* instr_ptr);
 void addNull(instruction* instr_ptr);
 
-char* prompt();
+void prompt();
+
+//char* prompt();
 
 //function to check existence of file
 bool exists(const char *fname);
@@ -55,7 +58,8 @@ int main(){
 	while(strcmp(userInput, "exit") != 0){
 		//PROMPT USER
 		strcpy(userInput, "");
-		userInput = prompt();
+		//userInput = prompt();
+		prompt();
 		//PARSE INPUT
 		do {
 			scanf("%ms",&token);
@@ -91,10 +95,11 @@ int main(){
 		} while ('\n' != getchar());
 
 		addNull(&instr);
+		//getTokens(&instr, cmd);
 		printTokens(&instr);
 
 		//EXECUTE COMMANDS
-		clearInstruction(&instr);
+		//clearInstruction(&instr);
 		//loop through to get all paths
 		//if flag is still false, file is not executable
 		bool file_flag = false;
@@ -103,8 +108,9 @@ int main(){
 			//path concatenated with provided pathname
 			strcpy(concat, path);
 			strcat(concat, "/");
-			strcat(concat, userInput);
+			strcat(concat, instr.tokens[0]);
 			//printf(" %s\n", concat);
+			//printf(" %s\n", cmd[0]);
 			if(exists(concat) && check_regular(concat)){
 				//strcpy(concat, "");
 				file_flag = true;
@@ -112,15 +118,18 @@ int main(){
 			}
 			strcpy(concat, "");
 			path = strtok(NULL, ":");
-		}
+		}	
+		clearInstruction(&instr);
 
     if(!file_flag)
       printf("%s\n", "File does not exist or is not regular");
     else {
       cmd[0] = concat;
-			//cmd[1] = "-l";
+      getTokens(&instr, cmd);
+      //cmd[1] = instr.tokens[1];
       my_execute(cmd);
     }
+    clearInstruction(&instr);
     //strcpy(userInput, "");
 	}
 	free(userInput);
@@ -165,6 +174,15 @@ void printTokens(instruction* instr_ptr)
 	}
 }
 
+void getTokens(instruction* instr_ptr, char** cmd)
+{
+	int i;
+	for(i =1; i < instr_ptr->numTokens; i++){
+		if ((instr_ptr->tokens)[i] != NULL)
+			cmd[i] = instr_ptr->tokens[i];
+	}	
+}
+
 void clearInstruction(instruction* instr_ptr)
 {
 	int i;
@@ -177,15 +195,15 @@ void clearInstruction(instruction* instr_ptr)
 	instr_ptr->numTokens = 0;
 }
 
-/*void prompt(){
+void prompt(){
 	char* user = getenv("USER");
 	char* machine = getenv("MACHINE");
 	char* pwd = getenv("PWD");
 	printf("%s@%s: %s>", user, machine, pwd);
 	//get the command a user inputs
-}*/
+}
 
-char* prompt(){
+/*char* prompt(){
 	char* input = malloc(sizeof(char));
 	char* user = getenv("USER");
 	char* machine = getenv("MACHINE");
@@ -196,7 +214,7 @@ char* prompt(){
 	//fgets(input, 50, stdin);
 	//strtok(input, "\n");
 	return input;
-}
+}*/
 
 bool exists(const char *fname){
   if(access(fname, F_OK) != -1){
