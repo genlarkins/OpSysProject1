@@ -118,7 +118,7 @@ int main(){
 			}
 			strcpy(concat, "");
 			path = strtok(NULL, ":");
-		}	
+		}
 		//clearInstruction(&instr);
 
     if(!file_flag)
@@ -126,9 +126,9 @@ int main(){
     else {
       cmd[0] = concat;
       getTokens(&instr, cmd);
-      //cmd[1] = instr.tokens[1];
       my_execute(cmd);
     }
+		//free(cmd);
     clearInstruction(&instr);
     //strcpy(userInput, "");
 	}
@@ -178,9 +178,9 @@ void getTokens(instruction* instr_ptr, char** cmd)
 {
 	int i;
 	for(i =1; i < instr_ptr->numTokens; i++){
-		if ((instr_ptr->tokens)[i] != NULL)
+		if ((instr_ptr->tokens)[i-1] != NULL)
 			cmd[i] = instr_ptr->tokens[i];
-	}	
+	}
 }
 
 void clearInstruction(instruction* instr_ptr)
