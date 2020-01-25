@@ -119,7 +119,7 @@ int main(){
 			strcpy(concat, "");
 			path = strtok(NULL, ":");
 		}	
-		clearInstruction(&instr);
+		//clearInstruction(&instr);
 
     if(!file_flag)
       printf("%s\n", "File does not exist or is not regular");
