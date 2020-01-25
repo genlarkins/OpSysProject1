@@ -20,7 +20,6 @@ void prompt();
 int main(){
 	
 	//prompt user
-	char* userInput= "nothing";
 	int counter=0;
 	
 	char* token = NULL;
@@ -32,11 +31,22 @@ int main(){
 	
 	int loopcount = 0;
 	int firstIns = 0;
-	while(strcmp(userInput, "exit") != 0){
+	do {
 		prompt();
+		loopcount++;
 		do {
 			scanf("%ms",&token);
+			
 			temp = (char*) calloc(100, (strlen((token)+1) * sizeof(char)));
+			if(loopcount == 1){
+				if(token[0] == '\n'){
+					continue;
+				}
+				else if(token[0] == '|' || token[0] == '<' || token[0] == '>') {
+					printf("Error: Invalid command syntax\n");
+					continue;
+				}
+			}
 			int i;
 			int start = 0;
 			for (i=0; i<strlen(token); i++) {
@@ -69,12 +79,13 @@ int main(){
 		
 		addNull(&instr);
 		printTokens(&instr);
-		
-		//execute command
-		clearInstruction(&instr);
-		
-	}
-	free(userInput);
+		if(strcmp(instr.tokens[0],"exit") != 0){ //if token not exit
+			//execute command
+			clearInstruction(&instr);
+		}
+		else {
+		} //exit
+	} while(loopcount == 1 || strcmp(instr.tokens[0],"exit") != 0);
 	printf("Exiting now!\n");
 	return 0;
 }
