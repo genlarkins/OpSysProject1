@@ -253,6 +253,16 @@ void my_execute(char **cmd) {
   else if (pid == 0) {
     //Child
 		if(cmd[0] == "echo"){
+			if(strncmp(cmd[1], "$", 1) == 0){
+				cmd[1]++;
+				if(getenv(cmd[1]) != NULL){
+					cmd[1] = getenv(cmd[1]);
+				}
+				else {
+					printf("%s\n", "Error: Environmental variable does not exist!");
+					exit(1);
+				}
+			}
 			printf("%s\n", cmd[1]);
 			exit(0);
 		}
