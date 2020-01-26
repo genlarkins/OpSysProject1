@@ -96,19 +96,30 @@ int main(){
 
 		addNull(&instr);
 		//getTokens(&instr, cmd);
-		printTokens(&instr);
+		//printTokens(&instr);
 
 		//EXECUTE COMMANDS
 		//clearInstruction(&instr);
 		//loop through to get all paths
 		//if flag is still false, file is not executable
+		//don't repeat execution for built ins
 		bool file_flag = false;
+		bool built_in = false;
 		while(path != NULL){
 			//printf( " %s\n", token );
-			//path concatenated with provided pathname
-			strcpy(concat, path);
-			strcat(concat, "/");
-			strcat(concat, instr.tokens[0]);
+			//path concatenated with provided pathname unless it is a built-in
+			if(strcmp(instr.tokens[0], "echo") == 0){
+				cmd[0] = "echo"; cmd[1] = instr.tokens[1];
+				my_execute(cmd);
+				file_flag = true;
+				built_in = true;
+				break;
+			}
+			else {
+				strcpy(concat, path);
+				strcat(concat, "/");
+				strcat(concat, instr.tokens[0]);
+			}
 			//printf(" %s\n", concat);
 			//printf(" %s\n", cmd[0]);
 			if(exists(concat) && check_regular(concat)){
@@ -123,7 +134,7 @@ int main(){
 
     if(!file_flag)
       printf("%s\n", "File does not exist or is not regular");
-    else {
+    else if (!built_in){
       cmd[0] = concat;
       getTokens(&instr, cmd);
       my_execute(cmd);
@@ -241,9 +252,15 @@ void my_execute(char **cmd) {
   }
   else if (pid == 0) {
     //Child
-    execv(cmd[0], cmd);
-    printf("Problem executing %s\n", cmd[0]);
-    exit(1);
+		if(cmd[0] == "echo"){
+			printf("%s\n", cmd[1]);
+			exit(0);
+		}
+		else {
+    	execv(cmd[0], cmd);
+    	printf("Problem executing %s\n", cmd[0]);
+    	exit(1);
+		}
   }
   else {
     //Parent
