@@ -272,7 +272,7 @@ void my_execute(char **cmd) {
 		else if(cmd[0] == "cd"){
 			if(strcmp(cmd[1], "$HOME") == 0){
 				if(chdir("$HOME"))
-					setenv("PWD", "/home/jared", 1);
+					printf("%s\n", "lol");
 			}
 			exit(0);
 		}
