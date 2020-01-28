@@ -295,11 +295,12 @@ void my_execute(char **cmd) {
 			exit(0);
 		}
 		else if(cmd[0] == "cd"){
-			if(strcmp(cmd[1], "$HOME") == 0){
-				if(chdir("$HOME") == 0)
-					setenv("PWD", "/home/jared", 1);
+			if((strcmp(cmd[1], "$HOME") == 0) || (strlen(cmd[1]) == 0)){
+				if(chdir(getenv("HOME")) == 0){
+					setenv("PWD", getenv("HOME"), 1);
+				}
 			}
-			exit(0);
+			//exit(0);
 		}
 		else {
     	execv(cmd[0], cmd);
