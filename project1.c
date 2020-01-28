@@ -7,6 +7,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
+#include <dirent.h>
 
 typedef struct {
 	char** tokens;
@@ -300,7 +301,22 @@ void my_execute(char **cmd) {
 					setenv("PWD", getenv("HOME"), 1);
 				}
 			}
-			//exit(0);
+			else{
+				char* fullpath = calloc(512, sizeof(char *));
+				char* ptr = calloc(512, sizeof(char *));
+			       	//ptr = realpath(cmd[1], fullpath);
+				//printf("%s\n", ptr);
+				//free(fullpath);
+				//free(ptr);
+			       	if((ptr = realpath(cmd[1], fullpath)) != NULL){
+					if(chdir(ptr)== 0){
+						setenv("PWD", ptr, 1);
+					}
+				}
+				else {
+					printf("%s\n", "Error: Directory does not exist!");
+				}	
+			}
 		}
 		else {
     	execv(cmd[0], cmd);
