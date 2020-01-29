@@ -25,7 +25,8 @@ void prompt(char* input);
 void bgProcess(char** data, BGcontain *bgp, int* counter);
 //void addProcess(char** data, BGP **bgp, int* counter);
 void checkBGP(int counter, BGcontain bg);
-void ioRedir1(char* cmd, char* file, int i_o);
+void ioRedir(char** cmd, char* file, int i_o);
+void ioRedir2(char** cmd, char* file1, char* file2);
 
 int main(){
 	//prompt user
@@ -37,10 +38,6 @@ int main(){
 	while(strcmp(userInput, "exit") != 0){
 		prompt(userInput);
 		if(bgCount>-1){
-			printf("BGP: %s  %d  %d\n",
-						   bgps.bgpc[0]->cmd,
-						   bgps.bgpc[0]->pid,
-						   bgps.bgpc[0]->position);
 			checkBGP(bgCount, bgps);
 		}
 		if(strcmp(userInput,"") != 0){
@@ -53,14 +50,11 @@ int main(){
 				counter++;
 				char* cmd[3] = {"/bin/sleep","10", NULL};
 				bgProcess(cmd, &bgps, &bgCount);
-				printf("Bg is now: %d\n", bgCount);
-				printf("BGP: %s  %d  %d\n",
-						   bgps.bgpc[0]->cmd,
-						   bgps.bgpc[0]->pid,
-						   bgps.bgpc[0]->position);
 			}
 			if(counter==1){
-				//test IO
+				char* cmd[2] = {"/bin/cat", NULL};
+				ioRedir2(cmd, "input.txt", "output.txt");
+				counter++;
 			}
 		}
 	}
@@ -140,12 +134,11 @@ void checkBGP(int counter, BGcontain bg){
 }
 
 
-void ioRedir1(char* cmd, char* file, int i_o){
+void ioRedir(char** cmd, char* file, int i_o){
 	int fd, buff;
-	char* fileData;
 	if(i_o==0){ //output
 		//redirect cmd result to file
-		fd = open(file, O_CREAT | O_WRONLY | O_TRUC);
+		fd = open(file, O_CREAT | O_WRONLY);
 		if(fd==-1){ //could not create
 			printf("Error creating file: %s", file);
 		}
@@ -154,12 +147,12 @@ void ioRedir1(char* cmd, char* file, int i_o){
 				close(STDOUT_FILENO);
 				dup(fd);
 				close(fd);
-				printf("Output Child done!");
+				execv(cmd[0],cmd); 
+				printf("Problem executing %s\n", cmd[0]);
+				exit(1);
 			}
 			else {
-				wait(fd); //wait for child to finish
 				close(fd);
-				printf("Output parent done!");
 			}
 		}
 	}
@@ -177,20 +170,46 @@ void ioRedir1(char* cmd, char* file, int i_o){
 				close(STDIN_FILENO);
 				dup(fd);
 				close(fd);
-				//execute process bscially it will read in from the file which is now "stdin"
+				//execute process bascially it will read in from the file which is now "stdin"
 				//call execution using fileData as input
-				printf("Input Child done!");
+				execv(cmd[0],cmd); 
+				printf("Problem executing %s\n", cmd[0]);
+				exit(1);
 			}
 			else {
 				//parent
-				wait(fd); //wait for child to finish
 				close(fd);
-				printf("input parent done!");
 			}
 		}
-	} else{
+	}
+	else{
 		//error
 		printf("Error: bad syntax");
 	}	
+}
+
+void ioRedir2(char** cmd, char* file1, char* file2){
+	int fd1, fd2, buff;
+	fd1 = open(file1, O_RDONLY);
+	fd2 = open(file2, O_CREAT | O_WRONLY | O_TRUNC);
+	if(fd1==-1 && fd2 ==-1){
+		printf("Error opening one or more of the files.\n");
+	} else {
+		if(fork()==0){
+			close(STDIN_FILENO);
+			dup(fd1);
+			close(fd1);
+			close(STDOUT_FILENO);
+			dup(fd2);
+			close(fd2);
+			execv(cmd[0],cmd); 
+			printf("Problem executing %s\n", cmd[0]);
+			exit(1);
+		}
+		else {
+			close(fd1);
+			close(fd2);
+		}
+	}
 }
 
