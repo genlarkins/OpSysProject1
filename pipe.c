@@ -48,11 +48,7 @@ char * findPath(char * instr, char * path);
 	addNull(&instr1);
 
 	char * path1 = getenv("PATH");
-	char * path2 = (char*) calloc(1000, sizeof(char));
-	char * path3 = (char*) calloc(1000, sizeof(char));
 
-	strcpy(path2, path1);
-	strcpy(path3, path1);
 
 	
     if(pipecount == 1 && (*instr.tokens[0] == '|' || *instr.tokens[instr.numTokens-2] == '|'))
@@ -89,7 +85,7 @@ char * findPath(char * instr, char * path);
 			if(x == afterpipespot)
 			{
 	
-				final2 = findPath(instr1.tokens[x],path2);
+				final2 = findPath(instr1.tokens[x],path1);
 
 				addToken(&instr3, final2);
 			}
@@ -143,7 +139,7 @@ char * findPath(char * instr, char * path);
 			}
 			if(x == afterpipespot1)
 			{
-				final2 = findPath(instr1.tokens[x], path2);
+				final2 = findPath(instr1.tokens[x], path1);
 				addToken(&instr5, final2);
 				
 			}
@@ -163,7 +159,7 @@ char * findPath(char * instr, char * path);
 			}
 			if(x == afterpipespot2)
 			{
-				final3 = findPath(instr1.tokens[x], path3);
+				final3 = findPath(instr1.tokens[x], path1);
 				addToken(&instr6, final3);
 			}
 
@@ -321,7 +317,8 @@ char * findPath(char * instr, char * path)
 {
 	int size = 5;
 	char * newpath;
-	char *pathcopy = path;
+	char *pathcopy = (char*) calloc(1000, sizeof(char));
+	strcpy(pathcopy, path);
 
 
 	newpath = strtok(pathcopy, ":");
