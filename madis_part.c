@@ -6,24 +6,30 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/types.h>
 
-void prompt(char* input);
-void bgProcess(char* data, BGP **bgp);
-void checkBGP(int counter, BGP **bgp);
-void ioRedir1(char* cmd, char* file, int i_o);
-
 typedef struct {
 	int position;
-	int pid;
-	char** cmd;
+	pid_t pid;
+	char* cmd;
 } BGP;
+
+typedef struct {
+	BGP **bgpc;
+} BGcontain;
+
+void prompt(char* input);
+void bgProcess(char** data, BGcontain *bgp, int* counter);
+//void addProcess(char** data, BGP **bgp, int* counter);
+void checkBGP(int counter, BGcontain bg);
+void ioRedir1(char* cmd, char* file, int i_o);
 
 int main(){
 	//prompt user
-	BGP **bgps;
+	BGcontain bgps;
 	char* userInput= malloc(sizeof(char)*50);
 	int counter=0;
 	int bgCount=-1;
@@ -31,23 +37,36 @@ int main(){
 	while(strcmp(userInput, "exit") != 0){
 		prompt(userInput);
 		if(bgCount>-1){
-			checkBGP(bgCount, &bgps);
+			printf("BGP: %s  %d  %d\n",
+						   bgps.bgpc[0]->cmd,
+						   bgps.bgpc[0]->pid,
+						   bgps.bgpc[0]->position);
+			checkBGP(bgCount, bgps);
 		}
 		if(strcmp(userInput,"") != 0){
 			printf("Got the input: %s\n", userInput);
 			//parse input
 			//execute counter++ for every command executed
 			//everytime bgprocess is run incr bgCount
-			if(bgCount==-1){ //will only run once
+			if(counter==0){ //will only run once
 				//run bgprocess
-				char *cmd[3] = {"/bin/sleep","25", NULL};
+				counter++;
+				char* cmd[3] = {"/bin/sleep","10", NULL};
 				bgProcess(cmd, &bgps, &bgCount);
+				printf("Bg is now: %d\n", bgCount);
+				printf("BGP: %s  %d  %d\n",
+						   bgps.bgpc[0]->cmd,
+						   bgps.bgpc[0]->pid,
+						   bgps.bgpc[0]->position);
+			}
+			if(counter==1){
+				//test IO
 			}
 		}
 	}
 	//Finish all bgprocesses
 	free(userInput);
-	free(bgps);
+	
 	printf("Exiting now!\n");
 	return 0;
 }
@@ -62,8 +81,24 @@ void prompt(char* input){
 	strtok(input, "\n");
 }
 
-void bgProcess(char* data, BGP **bgp, int *counter){
+void bgProcess(char** data, BGcontain *bgp, int *counter){
 	pid_t pid = fork();
+	int status;
+	
+	if (*counter == -1){ //if no bgp yet
+		bgp->bgpc = (BGP**) calloc(100, sizeof(BGP*));
+	}
+	else { //otherwise add an additional one
+		bgp->bgpc = (BGP**) realloc(bgp, (*counter+2) * sizeof(BGP*)); //+2 bc counter starts at -1
+	}
+	//add new bgp
+	bgp->bgpc[*counter+1] = (BGP *)calloc(100, (sizeof(BGP)));
+	bgp->bgpc[*counter+1]->cmd = (char *) calloc(100, (strlen(data[0])+1) * sizeof(char));
+	strcpy(bgp->bgpc[*counter+1]->cmd, data[0]); 
+	bgp->bgpc[*counter+1]->pid = pid;
+	bgp->bgpc[*counter+1]->position = *counter+1;
+	*counter = *counter + 1;
+	
 	if(pid == -1){
 		//error
 		exit(1);
@@ -71,46 +106,35 @@ void bgProcess(char* data, BGP **bgp, int *counter){
 	else if(pid==0){ 
 		//make new process to add
 		
-		if (counter == -1){ //if no bgp yet
-			bgp = (BGP**) calloc(100, sizeof(BGP*));
-		}
-		else { //otherwise add an additional one
-			bgp = (BGP**) realloc(bgpP, (counter+2) * sizeof(BGP*)); //+2 bc counter starts at -1
-		}
-		//add new bgp
-		bgp[counter+1] = (BGP *)calloc(100, (strlen(counter)+1) * sizeof(BGP));
-		bgp[counter+1]->cmd = (char *)calloc(100, (strlen(data)+1) * sizeof(char));
-		strcpy(bgpP[counter+1], data); 
-		bgp[counter+1]->pid = pid;
-		bgp[counter+1]->position = counter+1;
-		*counter++;
-		//add to bgProcesses
-		//addProcess(bgp, newbgp, counter);
-		printf("[%d]\t[%d]", newbgp->position, newbgp->pid);
-		//execute
-		execv(cmd[0],cmd); 
-		fprint("Problem executing %s\n", data);
+		execv(data[0], data); 
+		printf("Problem executing %s\n", data[0]);
 		exit(1);
 	} else {
 		//parent
 		//dont wait
+		waitpid(-1, &status, WNOHANG);
 	}
 }
 
-void checkBGP(int counter, BGP **bgp){
+void checkBGP(int counter, BGcontain bg){
 	//if a process is finished then set its position to -1
+	printf("Checking if bgp is done...\n");
+	int status;
 	int i;
+	int g;
+	//printf("b %d\n", bg.bgpc[0]->pid);
 	for(i=0; i<counter+1; i++){
-		if((bgp[i]) != NULL){
-			//check if position is -1
-			if(waitpid(bgp[i]->pid, &status, WNOHANG) == 0){ //not done
-				//dont do anything
-			}
-			else if(waitpid(bgp[i]->pid, &status, WNOHANG) == bgp[i]->pid) {
-				//is done
-				printf("[%d]+\t", bgp[i]->position, bgp[i]->cmd);
-				//change position to -1
-			}
+		g = waitpid(bg.bgpc[i]->pid, &status, WNOHANG);
+		printf("a %d\n", g);
+		//check if position is -1
+		if(g == 0){ //not done
+			//dont do anything
+		}
+		else if(g == bg.bgpc[i]->pid) {
+			//is done
+			printf("d\n");
+			printf("[%d]+\t %s\n", bg.bgpc[i]->position, bg.bgpc[i]->cmd);
+			//change position to -1
 		}
 	}
 }
@@ -121,7 +145,7 @@ void ioRedir1(char* cmd, char* file, int i_o){
 	char* fileData;
 	if(i_o==0){ //output
 		//redirect cmd result to file
-		fd = open(file, O_CREAT | O_WRONLY);
+		fd = open(file, O_CREAT | O_WRONLY | O_TRUC);
 		if(fd==-1){ //could not create
 			printf("Error creating file: %s", file);
 		}
