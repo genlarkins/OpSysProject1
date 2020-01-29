@@ -144,7 +144,7 @@ int main(){
 		while(path != NULL){
 			//path concatenated with provided pathname unless it is a built-in
 			if(check_built_in(&instr, cmd)){
-				cmd[1] = instr.tokens[1];
+				getTokens(&instr, cmd);
 				my_execute(cmd);
 				file_flag = true;
 				built_in = true;
@@ -301,7 +301,8 @@ void my_execute(char **cmd) {
 		}
 		else if(cmd[0] == "cd"){
 			//printf("%s\n", cmd[1]);
-			if((strcmp(cmd[1], "$HOME") == 0) || (strcmp(cmd[1], "") == 0)){
+			if((strcmp(cmd[1], "$HOME") == 0) || cmd[1] == ""){
+				printf("%s\n", cmd[1]);
 				if(chdir(getenv("HOME")) == 0){
 					setenv("PWD", getenv("HOME"), 1);
 				}
