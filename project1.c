@@ -219,6 +219,10 @@ void getTokens(instruction* instr_ptr, char** cmd)
 	int i;
 	for(i =1; i < instr_ptr->numTokens; i++){
 		if ((instr_ptr->tokens)[i-1] != NULL)
+			cmd[i] = "";
+	}
+	for(i =1; i < instr_ptr->numTokens; i++){
+		if ((instr_ptr->tokens)[i-1] != NULL)
 			cmd[i] = instr_ptr->tokens[i];
 	}
 }
@@ -296,7 +300,8 @@ void my_execute(char **cmd) {
 			exit(0);
 		}
 		else if(cmd[0] == "cd"){
-			if((strcmp(cmd[1], "$HOME") == 0) || (strlen(cmd[1]) == 0)){
+			//printf("%s\n", cmd[1]);
+			if((strcmp(cmd[1], "$HOME") == 0) || (strcmp(cmd[1], "") == 0)){
 				if(chdir(getenv("HOME")) == 0){
 					setenv("PWD", getenv("HOME"), 1);
 				}
@@ -307,8 +312,8 @@ void my_execute(char **cmd) {
 			       	//ptr = realpath(cmd[1], fullpath);
 				//printf("%s\n", ptr);
 				//free(fullpath);
-				//free(ptr);
-			       	if((ptr = realpath(cmd[1], fullpath)) != NULL){
+				//free(ptr);	
+				if((ptr = realpath(cmd[1], fullpath)) != NULL){
 					if(chdir(ptr)== 0){
 						setenv("PWD", ptr, 1);
 					}
