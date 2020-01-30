@@ -24,6 +24,7 @@ void error(instruction* instr_ptr);
 bool checkEnvironmental(instruction* instr_ptr);
 void expandEnvironmental(instruction* instr_ptr, char* expanded);
 void pathParse(char* path, char* fullpath);
+char * findPath(char * instr, char * path);
 
 void prompt();
 
@@ -56,6 +57,9 @@ int main(){
 
 	//$PATH
 	char * path = strtok(getenv("PATH"), ":");
+	char * path2 = calloc(1000, sizeof(char)); 
+
+	strcpy(path2, path);
 	//string for concatonated path names
 	char * concat = (char *)malloc(sizeof(char)*size);
 	//string containing command + args
@@ -141,7 +145,8 @@ int main(){
 		//don't repeat execution for built ins
 		bool file_flag = false;
 		bool built_in = false;
-		while(path != NULL){
+		//strcpy(path2, path);
+		/*while(path2 != NULL){
 			//path concatenated with provided pathname unless it is a built-in
 			if(check_built_in(&instr, cmd)){
 				getTokens(&instr, cmd);
@@ -151,27 +156,53 @@ int main(){
 				break;
 			}
 			else {
-				strcpy(concat, path);
+				printf("%s\n", getenv("PATH"));
+				//printf("%s\n", path);
+				strcpy(concat, path2);
 				strcat(concat, "/");
 				strcat(concat, instr.tokens[0]);
+				printf("%s\n", concat);
 			}
 			if(exists(concat) && check_regular(concat)){
 				file_flag = true;
 				break;
 			}
 			strcpy(concat, "");
-			path = strtok(NULL, ":");
-		}
-
-    if(!file_flag)
+			//strcpy(path2, path);
+			path2 = strtok(NULL, ":");
+		}*/
+    
+    char buf[PATH_MAX];
+    char* fullPath = calloc(512, sizeof(char *));
+    //char* thePath = calloc(512, sizeof(char *));
+    if(check_built_in(&instr, cmd)){
+	getTokens(&instr, cmd);
+	my_execute(cmd);
+	file_flag = true;
+	built_in = true;
+	//break;
+    }
+    else {
+      	//ptr = realpath(instr.tokens[0], thePath); 
+	//fullPath = findPath(instr.tokens[0], getenv("PATH"));
+	fullPath = findPath(instr.tokens[0], getenv("PATH"));
+	printf("%s\n", fullPath);
+        cmd[0] = fullPath;
+	getTokens(&instr, cmd);
+      	my_execute(cmd);
+    }
+    /*if(!file_flag){
       printf("%s\n", "File does not exist or is not regular");
-    else if (!built_in){
+      //printf("%s\n", concat);
+    }*/
+    /*else if (!built_in){
       cmd[0] = concat;
       getTokens(&instr, cmd);
       my_execute(cmd);
-    }
+    }*/
     clearInstruction(&instr);
 	}
+	//clearInstruction(&instr);
 	free(userInput);
 	printf("Exiting now!\n");
 	return 0;
@@ -824,4 +855,36 @@ void pathParse(char* path, char* fullpath)
 
     free(strcp);
     free(tokcopy);
+}
+
+char * findPath(char * instr, char * path)
+{
+	int size = 5;
+	char * newpath;
+	char *pathcopy = (char*) calloc(1000, sizeof(char));
+	strcpy(pathcopy, path);
+
+
+	newpath = strtok(pathcopy, ":");
+	char * concat2 = (char *)malloc(sizeof(char)*size);
+	bool file_flag1 = false;
+	while(newpath != NULL)
+	{
+		strcpy(concat2, newpath);
+		strcat(concat2, "/");
+		strcat(concat2, instr);
+		if(exists(concat2) && check_regular(concat2))
+		{
+			file_flag1 = true;
+			break;
+		}
+		strcpy(concat2,"");
+		newpath = strtok(NULL, ":");
+	
+	}
+	if(file_flag1 == true)
+		return(concat2);		
+
+	
+	
 }
