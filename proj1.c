@@ -1,0 +1,1559 @@
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdbool.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <sys/stat.h>
+#include <dirent.h>
+
+typedef struct {
+	char** tokens;
+	int numTokens;
+} instruction;
+
+typedef struct {
+	int position;
+	pid_t pid;
+	char* cmd;
+} BGP;
+
+typedef struct {
+	BGP **bgpc;
+} BGcontain;
+
+
+bool exists(const char *fname); //function to check existence of file
+bool check_regular(const char *fname); //function to check if file is regular
+
+
+void addToken(instruction* instr_ptr, char* tok);
+void printTokens(instruction* instr_ptr);
+void clearInstruction(instruction* instr_ptr);
+void addNull(instruction* instr_ptr);
+char * findPath(char * instr, char * path);
+
+void singlePipe(instruction* instr2_ptr, instruction* instr3_ptr);
+void doublePipe(instruction* instr4_ptr, instruction* instr5_ptr, instruction* instr6_ptr);
+
+bool checkEnvironmental(instruction* instr_ptr);
+void expandEnvironmental(instruction* instr_ptr);
+
+void pathParse(char* path, char* fullpath);
+
+void prompt();
+//will remove bgProcess later
+void bgProcess(char** data, BGcontain *bgp, int* bgCounter, int* jobs);
+void checkBGP(int bgCounter, BGcontain* bg, int* jobs, int* counter);
+void clearBGcontain(BGcontain* bg);
+void ioRedir(instruction instr, instruction cmd, char* file, int i_o, int trigger, BGcontain *bgp, int* bgCounter, int*counter, int* jobs);
+void ioRedir2(instruction filepath, instruction instr, char* file1, char* file2, int trigger, BGcontain *bgp, int* bgCounter, int*counter, int* jobs);
+void printJobs(BGcontain *bgp, int jobs);
+void my_execute(char **cmd);
+void getTokens(instruction* instr_ptr, char** cmd);
+bool check_built_in(instruction* instr_ptr, char** cmd);
+
+
+//every execution must have: BGcontain *bgp, int* bgCounter, int*counter, int* jobs, int bgTrigger
+
+int main(){
+	
+	int counter=0;
+	int jobs=0;
+	int exeType;
+	int bgTrigger;
+	int ioCount=0;
+	int error;
+	int bgCount = -1;
+	int exit=0;
+	int loopcount = 0;
+	int firstIns = 0;
+    int pipecount = 0;
+    int size = 4;
+	
+	char* token = NULL;
+	char* temp = NULL;
+	
+	instruction instr;
+	instr.tokens = NULL;
+	instr.numTokens = 0;
+	
+	BGcontain bgps;
+	
+        char ** cmd = calloc(1000, sizeof(char));
+        char * path = strtok(getenv("PATH"), ":");
+        char * concat = calloc(512, sizeof(char *));
+	do {
+		prompt(); //prmpts user to enter stuff
+		loopcount++;
+		exeType = 0;
+		bgTrigger = 0;
+        firstIns = 0;
+		ioCount = 0;
+		error = 0;
+		do {
+			//scans for next token and allocates token var to size of scanned token
+			scanf("%ms",&token);
+			if(loopcount == 1){
+				if(token[0] == '\n'){
+					continue;
+				}
+			}
+			int i;
+			int start = 0;
+			
+			if(token[0]=='&' && firstIns == 0){
+				firstIns = 1;
+			}
+			else{
+				temp = (char*) calloc(100, (strlen((token)+1) * sizeof(char)));
+			}
+			
+			for (i=0; i<strlen(token); i++) {
+				if(token[i] == '|' || token[i] == '>' || token[i] == '<'
+				   || token[i] == '&') {
+					if(token[i] == '|'){
+						exeType = 2;
+                        pipecount++;
+					}
+					else if((token[i] == '<' || token[i] == '>')) {
+						exeType = 1;
+						ioCount = ioCount + 1;
+					}
+					else if(token[i]=='&'){
+						bgTrigger = bgTrigger + 1;
+					}
+					
+					if(i-start > 0){
+						memcpy(temp, token + start, i-start);
+						temp[i-start] = '\0';
+						addToken(&instr, temp);
+					}
+					char specialChar[2];
+					specialChar[0] = token[i];
+					specialChar[1] = '\0';
+                    if(firstIns == 0){
+                        addToken(&instr,specialChar);
+                    }
+                    else {
+                        firstIns = 0;
+                    }
+					
+					start = i+1;
+				}
+			}
+			if (start < strlen(token)) {
+				memcpy(temp, token + start, strlen(token) - start);
+				temp[i-start] = '\0';
+				addToken(&instr, temp);
+			}
+			//free and reset variables
+			free(token);
+			free(temp);
+			token = NULL;
+			temp = NULL;
+		} while ('\n' != getchar());
+		
+		addNull(&instr);
+	//	printTokens(&instr);
+    
+       	int p;
+		for (p = 0; p < instr.numTokens; p++)
+		{
+            if ((instr.tokens)[p] != NULL)
+				if(checkEnvironmental(&instr) == true)
+		            expandEnvironmental(&instr);
+	    }
+        int s;
+        int spot;
+        for (p = 0; p < instr.numTokens; p++)
+        {
+            if((instr.tokens)[p] != NULL)
+            {
+                for(s = 0; s < strlen((instr.tokens)[p]); s++)
+                {
+                    if((instr.tokens)[p][s] == '.' || (instr.tokens)[p][s] == '~' || (instr.tokens)[p][s] == '/')
+                    {
+                        spot = p;
+                    }
+                }
+            }
+        }
+        
+        char * enteredpath = calloc(1000, sizeof(char));
+        char * input = (instr.tokens)[spot];
+        sprintf(enteredpath, "%s", input);
+        
+        char * fullpath = calloc(512, sizeof(char *));
+
+		//THE INPUT FOR THIS FUNCTION HAS TO BE DYNAMICALLY ALLOCATED SO YOU NEED TO MAKE A DYNAMIC VARIABLE THEN SET IT
+		//EQUAL TO THE TOKEN(AKA PATH) YOU WANT TO SEND IN
+		pathParse(enteredpath, fullpath);
+	
+        
+        instr.tokens[spot] = (char *) realloc(instr.tokens[spot], (strlen(fullpath)+1)*sizeof(char));
+        strcpy(instr.tokens[spot], fullpath);
+
+        
+
+		
+		free(fullpath);
+        free(enteredpath);
+		
+		//bgcheck
+		if(jobs>0){
+			checkBGP(bgCount, &bgps, &jobs, &counter);
+			printf("done\n");
+		}
+		
+		if(instr.tokens[0] == NULL || strcmp(instr.tokens[0],"exit") != 0){ //if token not exit
+			//execute command
+			int j;
+			if(instr.tokens[0] != NULL && (strcmp(instr.tokens[0],"|")==0 || strcmp(instr.tokens[0],"<")==0
+													|| strcmp(instr.tokens[0],">")==0)) {
+					printf("Error: Invalid command syntax\n");
+					error++;
+			}
+			for(j=0; j<instr.numTokens; j++){
+				if(instr.tokens[j] != NULL && instr.tokens[j+1] != NULL && strcmp(instr.tokens[j],"&") == 0
+				   && j!=0){
+					printf("Error: Invalid command syntax\n");
+					error++;
+				}
+				else if(instr.tokens[j] != NULL && (strcmp(instr.tokens[j],"<")==0
+											   || strcmp(instr.tokens[j],">")==0)){
+					if(instr.tokens[j+1] == NULL || strcmp(instr.tokens[j+1],"<")==0
+					   || strcmp(instr.tokens[j+1],">")==0){
+						printf("Error: Invalid command syntax\n");
+						error++;
+					}
+				} 
+			}
+			if(error == 0 || instr.tokens[0] == NULL){
+				if(strcmp(instr.tokens[0], "jobs") == 0){
+					if(jobs==0){
+						printf("No active background processes running.\n");
+					}
+					else{
+						int i;
+						for(i=0; i<bgCount+1;i++){
+							if(bgps.bgpc[i]->position != -1){
+							printf("[%d]+ [%d] [%s]\n", bgps.bgpc[i]->position, bgps.bgpc[i]->pid, bgps.bgpc[i]->cmd);
+							}
+						}
+					}
+				}
+				else if(exeType == 0){
+					//normal execution
+                    /*char ** cmd = calloc(1000, sizeof(char));
+                    char buf[PATH_MAX];                                                                                                    
+                    char* fullPath = calloc(512, sizeof(char *));
+                    if(check_built_in(&instr, cmd)){
+                        getTokens(&instr, cmd);
+                        my_execute(cmd);
+                        //file_flag = true;
+                        //built_in = true;
+                        //break;
+                    }
+                    else if(fullPath = realpath(instr.tokens[0], buf)){
+                        printf("%s\n", fullPath);
+                        cmd[0] = fullPath;
+                        getTokens(&instr, cmd);
+                        my_execute(cmd);
+                    }
+                    else{
+                        printf("%s\n", "Error: Invalid command");
+                    }*/
+                    /*char ** cmd = calloc(1000, sizeof(char));
+                    char * path = strtok(getenv("PATH"), ":");
+                    char * concat = calloc(512, sizeof(char *));*/
+                    bool file_flag = false;
+		    bool built_in = false;
+                    while(path != NULL){
+			        //path concatenated with provided pathname unless it is a built-in
+			         if(check_built_in(&instr, cmd)){
+				        getTokens(&instr, cmd);
+				        my_execute(cmd);
+				        file_flag = true;
+				        built_in = true;
+				        break;
+			         }
+			         else {
+				        //printf("%s\n", getenv("PATH"));
+				        //printf("%s\n", path);
+				        strcpy(concat, path);
+				        strcat(concat, "/");
+				        strcat(concat, instr.tokens[0]);
+				        //printf("%s\n", concat);
+			         }
+			         if(exists(concat) && check_regular(concat)){
+				        file_flag = true;
+				        break;
+			         }
+			         strcpy(concat, "");
+			         //strcpy(path2, path);
+			         path = strtok(NULL, ":");
+		          }
+                  if(!file_flag){
+                    printf("%s\n", "File does not exist or is not regular");
+                    //printf("%s\n", concat);
+                  }
+                    else if (!built_in){
+                        cmd[0] = concat;
+                        getTokens(&instr, cmd);
+                        my_execute(cmd);
+                }
+				}
+				else if(exeType == 1){
+					// io redirection
+					//cmd <|> file <|> file
+					int z;
+					int pos=0;
+					instruction ioR;
+					for(z=0; z<instr.numTokens; z++){
+						if(instr.tokens[z] != NULL && pos==0 && (strcmp(instr.tokens[z],"<") == 0 || strcmp(instr.tokens[z],">")==0)){
+							pos = z;
+						} else {
+							if(z!=0){
+								if(instr.tokens[z] != NULL && (strcmp(instr.tokens[z],"<") !=0 || strcmp(instr.tokens[z],">")!=0) &&
+									(strcmp(instr.tokens[z-1],"<")==0 || strcmp(instr.tokens[z-1],">")==0)){
+									printf("%s\n", instr.tokens[z]);
+									addToken(&ioR, instr.tokens[z]);
+								}
+							} else { //if first always add
+								addToken(&ioR, instr.tokens[z]);
+							}
+							
+						}
+					}
+					addNull(&ioR);
+					if(ioCount == 1){
+						if(strcmp(instr.tokens[pos],">")==0){ //output
+							printf("single output\n");
+							ioRedir(ioR, instr, instr.tokens[pos+1], 0, bgTrigger, &bgps, &bgCount, &counter, &jobs);
+						}
+						else if(strcmp(instr.tokens[pos],"<")==0) {
+							printf("single input: %s\n", instr.tokens[pos]);
+							printf("%d\n", bgCount);
+							ioRedir(ioR, instr, instr.tokens[pos+1], 1, bgTrigger, &bgps, &bgCount, &counter, &jobs);
+						}
+					} else {
+						if(strcmp(instr.tokens[pos],"<")==0){ //input
+							printf("put first\n");
+							ioRedir2(ioR, instr, instr.tokens[pos+1], instr.tokens[pos+3], bgTrigger, &bgps, &bgCount, &counter, &jobs);
+						}
+						else if(strcmp(instr.tokens[pos],">")==0){
+							printf("output first\n");
+							ioRedir2(ioR, instr, instr.tokens[pos+3], instr.tokens[pos+1], bgTrigger, &bgps, &bgCount, &counter, &jobs);
+						}
+					}
+					
+				}
+				else if(exeType == 2)
+                {
+					                    instruction instr1;
+                    instr1.tokens = NULL;
+                    instr1.numTokens = 0;
+                    instruction instr2;
+                    instr2.tokens = NULL;
+                    instr2.numTokens = 0;
+                    instruction instr3;
+                    instr3.tokens = NULL;
+                    instr3.numTokens = 0;
+                    instruction instr4;
+                    instr4.tokens = NULL;
+                    instr4.numTokens = 0;
+                    instruction instr5;
+                    instr5.tokens = NULL;
+                    instr5.numTokens = 0;
+                    instruction instr6;
+                    instr6.tokens = NULL;
+                    instr6.numTokens = 0;
+            
+                    int i;
+                    for(i = 0; i < instr.numTokens; i++)
+                    {
+                        if(instr.tokens[i] != NULL)
+                            addToken(&instr1, instr.tokens[i]);
+                    }
+                    addNull(&instr1);
+            
+                    char * path1 = getenv("PATH");
+              
+                
+                    if(pipecount == 1 && (*instr.tokens[0] == '|' || *instr.tokens[instr.numTokens-2] == '|'))
+                        printf("Error! Invalid pipe command!\n");
+                    else if(pipecount == 1)
+                    {
+            
+                        char * final1 = (char*) malloc(size*sizeof(char));
+                        char * final2 = (char*) malloc(size*sizeof(char));
+            
+                        
+                        final1 = findPath(instr1.tokens[0], path1);
+                
+                        addToken(&instr2,final1);
+            
+                        int foundPipe = 0;
+                        char * pi = "|";
+                        int afterpipespot;
+                        int x;
+                
+                        for(x=1; x < instr1.numTokens-1; x++)
+                        {
+                            if(strcmp(instr1.tokens[x], pi) != 0 && foundPipe == 0)
+                            {
+                
+                            
+                                addToken(&instr2, instr1.tokens[x]);
+                            }
+                            if(strcmp(instr1.tokens[x], pi) == 0)
+                            {
+                                foundPipe = 1;
+                                afterpipespot = x+1;
+                
+                            }
+                            if(x == afterpipespot)
+                            {
+                    
+                                final2 = findPath(instr1.tokens[x],path1);
+                
+                                addToken(&instr3, final2);
+                            }
+                            if(foundPipe == 1 && strcmp(instr1.tokens[x], pi) != 0 && x > afterpipespot)
+                            {
+                                addToken(&instr3, instr1.tokens[x]);
+                                
+                            }
+                        }	
+            
+                        addNull(&instr2);
+                        addNull(&instr3);
+                
+                        singlePipe(&instr2, &instr3);
+                
+                        clearInstruction(&instr2);
+                        clearInstruction(&instr3);
+                    
+                    
+                    
+                    }
+                 
+                    if(pipecount == 2 && (*instr.tokens[0] == '|'))
+                        printf("Error! Invalid pipe command!\n");
+                    else if(pipecount == 2)
+                    {
+                        char * final1 = (char*) malloc(size*sizeof(char));
+                        char * final2 = (char*) malloc(size*sizeof(char));
+                        char * final3 = (char*) malloc(size*sizeof(char));
+                        
+                        final1 = findPath(instr.tokens[0], path1);
+                        addToken(&instr4,final1);
+                        
+                        
+                        int foundPipe1 = 0;
+                        int foundPipe2 = 0;
+                        int p;
+                //	char * pi = "|";
+                        int afterpipespot1 = -1;
+                        int afterpipespot2 = -1;
+                        int x;
+            
+                        for(x=1; x<instr1.numTokens-1; x++)
+                        {
+                            if(*instr1.tokens[x] != '|' && foundPipe1 == 0)
+                                 addToken(&instr4, instr1.tokens[x]);
+                            if(*instr1.tokens[x] == '|' && foundPipe1 == 0)
+                            {
+                                foundPipe1 = 1;
+                                afterpipespot1 = x+1;
+                                p=0;
+                            }
+                            if(x == afterpipespot1)
+                            {
+                                final2 = findPath(instr1.tokens[x], path1);
+                                addToken(&instr5, final2);
+                                
+                            }
+                            if(foundPipe1 == 1 && foundPipe2 == 0 && x > afterpipespot1)
+                            {
+                                if(*instr1.tokens[x] != '|')
+                                {
+                                    addToken(&instr5, instr1.tokens[x]);
+                                    p++;
+                                }
+                                        
+                            }
+                            if(foundPipe1 == 1 && *instr1.tokens[x] == '|' && p > 0)
+                            {
+                                foundPipe2 = 1;
+                                afterpipespot2 = x+1;
+                            }
+                            if(x == afterpipespot2)
+                            {
+                                final3 = findPath(instr1.tokens[x], path1);
+                                addToken(&instr6, final3);
+                            }
+                
+                            if(foundPipe2 == 1 && *instr1.tokens[x] != '|' && x > afterpipespot2)      
+                                addToken(&instr6, instr1.tokens[x]);
+                                  
+                        }
+                    
+                        addNull(&instr4);
+                        addNull(&instr5);
+                        addNull(&instr6);
+                        doublePipe(&instr4,&instr5,&instr6);
+                        clearInstruction(&instr4);
+                        clearInstruction(&instr5);
+                        clearInstruction(&instr6);
+		
+                    }
+                    clearInstruction(&instr1);
+				
+			
+				}
+			}
+		}
+		
+		if(strcmp(instr.tokens[0],"exit") == 0){
+			exit = 1;
+		}
+		
+		clearInstruction(&instr);
+	} while(exit == 0);
+	//empty bgprocesses
+	
+	printf("Exiting now!\n\tCommands executed: %d\n",counter);
+	//clear bgp
+	return 0;
+}
+
+//reallocates instruction array to hold another token
+//allocates for new token within instruction array
+void addToken(instruction* instr_ptr, char* tok)
+{
+	//extend token array to accomodate an additional token
+	if (instr_ptr->numTokens == 0)
+		instr_ptr->tokens = (char**) calloc(100,sizeof(char*));
+	else
+		instr_ptr->tokens = (char**) realloc(instr_ptr->tokens, (instr_ptr->numTokens+1) * sizeof(char*));
+
+	//allocate char array for new token in new slot
+	instr_ptr->tokens[instr_ptr->numTokens] = (char *)malloc((strlen(tok)+1) * sizeof(char));
+	strcpy(instr_ptr->tokens[instr_ptr->numTokens], tok);
+
+	instr_ptr->numTokens++;
+}
+
+void addNull(instruction* instr_ptr)
+{
+	//extend token array to accomodate an additional token
+	if (instr_ptr->numTokens == 0)
+		instr_ptr->tokens = (char**)calloc(100, sizeof(char*));
+	else
+		instr_ptr->tokens = (char**)realloc(instr_ptr->tokens, (instr_ptr->numTokens+1) * sizeof(char*));
+
+	instr_ptr->tokens[instr_ptr->numTokens] = (char*) NULL;
+	instr_ptr->numTokens++;
+}
+
+void printTokens(instruction* instr_ptr)
+{
+	int i;
+	printf("Tokens:\n");
+	for (i = 0; i < instr_ptr->numTokens; i++) {
+		if ((instr_ptr->tokens)[i] != NULL)
+			printf("%s\n", (instr_ptr->tokens)[i]);
+	}
+}
+
+void clearInstruction(instruction* instr_ptr)
+{
+	int i;
+	for (i = 0; i < instr_ptr->numTokens; i++)
+		free(instr_ptr->tokens[i]);
+
+	free(instr_ptr->tokens);
+
+	instr_ptr->tokens = NULL;
+	instr_ptr->numTokens = 0;
+}
+
+void prompt(){ //prompts the user
+	char* user = getenv("USER");
+	char* machine = getenv("MACHINE");
+	char* pwd = getenv("PWD");
+	printf("%s@%s: %s>", user, machine, pwd);
+}
+
+void checkBGP(int bgCounter, BGcontain* bg, int* jobs, int* counter){
+	//if a process is finished then set its position to -1
+	printf("Checking if bgp is done...\n");
+	int status;
+	int i;
+	int g;
+	//printf("b %d\n", bg.bgpc[0]->pid);
+	for(i=0; i<bgCounter+1; i++){
+		g = waitpid(bg->bgpc[i]->pid, &status, WNOHANG);
+		//check if position is -1
+		if(g == 0){ //not done
+			//dont do anything
+		}
+		else if(g == bg->bgpc[i]->pid) {
+			//is done
+			printf("[%d]+ %s\n", bg->bgpc[i]->position, bg->bgpc[i]->cmd);
+			bg->bgpc[i]->position = -1;
+			printf("a\n");
+			*counter = *counter + 1;
+			*jobs = *jobs - 1;
+			printf("c\n");
+			//change position to -1
+		}
+	}
+}
+
+
+void ioRedir(instruction instr, instruction cmd, char* file, int i_o, int trigger, BGcontain* bgp, int* bgCounter, int* counter, int* jobs){ //when there's just input or output
+	int fd, status;
+	if(i_o==0){ //output
+		//redirect cmd result to file
+		fd = open(file, O_CREAT | O_WRONLY | O_TRUNC);
+		if(fd==-1){ //could not create
+			printf("Error creating file: %s\n", file);
+		}
+		else {
+			pid_t pid = fork();
+			
+			int lengthCMD=0;
+			char* cmd2;
+			int x;
+			for(x=0; x<cmd.numTokens;x++){
+				if(cmd.tokens[x] != NULL){
+					lengthCMD = lengthCMD + strlen(cmd.tokens[x]) + 1;
+				}
+			}
+			cmd2 = (char*) calloc(100, (lengthCMD + 1)*sizeof(char));
+			for(x=0; x<cmd.numTokens;x++){
+				if(cmd.tokens[x] != NULL){
+					strcat(cmd2, cmd.tokens[x]);
+					strcat(cmd2, " ");
+				}
+			}
+			printf("cmd line: %s\n", cmd2);
+			
+			if(pid == 0){
+				close(STDOUT_FILENO);
+				dup(fd);
+				close(fd);
+				instr.tokens[0] = (char*) realloc(instr.tokens[0], strlen(findPath(instr.tokens[0], getenv("PATH"))) * sizeof(char));
+				strcpy(instr.tokens[0], findPath(instr.tokens[0], getenv("PATH")));
+				execv(instr.tokens[0],instr.tokens);
+				printf("Problem executing %s\n", instr.tokens[0]);
+				exit(1);
+			}
+			else {
+				close(fd);
+				if(trigger!=0){
+					//bg stuff
+					if (*bgCounter == -1){ //if no bgp yet
+						bgp->bgpc = (BGP**) calloc(100, sizeof(BGP*));
+					}
+					else { //otherwise add an additional one
+						bgp->bgpc = (BGP**) realloc(bgp, (*bgCounter+2) * sizeof(BGP*)); //+2 bc counter starts at -1
+					}
+					//add new process to bgp
+					bgp->bgpc[*bgCounter+1] = (BGP *)calloc(100, (sizeof(BGP)));
+					bgp->bgpc[*bgCounter+1]->cmd = (char *) calloc(100, (strlen(cmd2)+1) * sizeof(char));
+					strcpy(bgp->bgpc[*bgCounter+1]->cmd, cmd2); 
+					bgp->bgpc[*bgCounter+1]->pid = pid;
+					bgp->bgpc[*bgCounter+1]->position = *bgCounter+1;
+					*bgCounter = *bgCounter + 1;
+					printf("[%d] [%d]\n",*bgCounter, pid);
+				} else{
+					waitpid(pid, &status, 0);
+					*counter = *counter+1;
+				}
+			}
+		}
+	}
+	else if(i_o==1){ //input
+		//check if file exists
+		//error if it doesnt else
+		//execute cmd with file as input
+		fd = open(file, O_RDONLY);
+		if(fd == -1){ //means error opening file
+			printf("Error opening file: %s\n", file);
+		}
+		else{
+			pid_t pid = fork();
+			
+			int lengthCMD=0;
+			char* cmd2;
+			int x;
+			for(x=0; x<cmd.numTokens;x++){
+				if(cmd.tokens[x] != NULL){
+					lengthCMD = lengthCMD + strlen(cmd.tokens[x]) + 1;
+				}
+			}
+			cmd2 = (char*) calloc(100, (lengthCMD + 1)*sizeof(char));
+			for(x=0; x<cmd.numTokens;x++){
+				if(cmd.tokens[x] != NULL){
+					strcat(cmd2, cmd.tokens[x]);
+					strcat(cmd2, " ");
+				}
+			}
+			
+			if(pid == 0){
+				//child
+				close(STDIN_FILENO);
+				dup(fd);
+				close(fd);
+				//execute process bascially it will read in from the file which is now "stdin"
+				//call execution using fileData as input
+				instr.tokens[0] = (char*) realloc(instr.tokens[0], (strlen(findPath(instr.tokens[0], getenv("PATH")))+1) * sizeof(char));
+				strcpy(instr.tokens[0], findPath(instr.tokens[0], getenv("PATH")));
+				execv(instr.tokens[0],instr.tokens);
+				printf("Problem executing %s\n", instr.tokens[0]);
+				exit(1);
+			}
+			else {
+				//parent
+				close(fd);
+				if(trigger!=0){
+					printf("In bg stuff\n");
+					//bg stuff
+					if (*bgCounter == -1){ //if no bgp yet
+						bgp->bgpc = (BGP**) calloc(100, sizeof(BGP*));
+					}
+					else { //otherwise add an additional one
+						bgp->bgpc = (BGP**) realloc(bgp, (*bgCounter+2) * sizeof(BGP*)); //+2 bc counter starts at -1
+					}
+					//add new process to bgp
+					bgp->bgpc[*bgCounter+1] = (BGP *)calloc(100, (sizeof(BGP)));
+					bgp->bgpc[*bgCounter+1]->cmd = (char *) calloc(100, (strlen(cmd2)+1) * sizeof(char));
+					strcpy(bgp->bgpc[*bgCounter+1]->cmd, cmd2); 
+					bgp->bgpc[*bgCounter+1]->pid = pid;
+					bgp->bgpc[*bgCounter+1]->position = *bgCounter+1;
+					*bgCounter = *bgCounter + 1;
+					*jobs = *jobs +1;
+					printf("[%d] [%d]\n",*bgCounter+1, pid);
+					waitpid(-1, &status, WNOHANG);
+				} else{
+					waitpid(pid, &status, 0);
+					*counter = *counter+1;
+				}
+			}
+		}
+	}
+	else{
+		//error
+		printf("Error: bad syntax");
+	}	
+}
+void ioRedir2(instruction filepath, instruction instr, char* file1, char* file2, int trigger, BGcontain *bgp, int* bgCounter, int* counter, int* jobs){ //for when theres an input and outputint fd1, fd2, buff;
+	int fd1, fd2;
+	fd1 = open(file1, O_RDONLY);
+	fd2 = open(file2, O_CREAT | O_WRONLY | O_TRUNC, 666);
+	int status;
+	if(fd1==-1 && fd2 ==-1){
+		printf("Error opening one or more of the files.\n");
+	} else {
+		pid_t pid = fork();
+		//make cmmd
+		int lengthCMD=0;
+		char* cmd;
+		int x;
+		for(x=0; x<instr.numTokens;x++){
+			if(instr.tokens[x] != NULL){
+				lengthCMD = lengthCMD + strlen(instr.tokens[x]) + 1;
+			}
+		}
+		cmd = (char*) calloc(100, (lengthCMD + 1)*sizeof(char));
+		for(x=0; x<instr.numTokens;x++){
+			if(instr.tokens[x] != NULL){
+				strcat(cmd, instr.tokens[x]);
+				strcat(cmd, " ");
+			}
+		}
+		
+		if(pid==0){
+			close(STDIN_FILENO);
+			dup(fd1);
+			close(fd1);
+			close(STDOUT_FILENO);
+			dup(fd2);
+			close(fd2);
+			filepath.tokens[0] = (char*) realloc(filepath.tokens[0], strlen(findPath(filepath.tokens[0], getenv("PATH"))) * sizeof(char));
+			strcpy(filepath.tokens[0], findPath(filepath.tokens[0], getenv("PATH")));
+			execv(filepath.tokens[0],filepath.tokens); 
+			printf("Problem executing %s\n", cmd);
+			exit(1);
+		}
+		else {
+			close(fd1);
+			close(fd2);
+			if(trigger!=0){
+				//bg stuff
+				if (*bgCounter == -1){ //if no bgp yet
+					bgp->bgpc = (BGP**) calloc(100, sizeof(BGP*));
+				}
+				else { //otherwise add an additional one
+					bgp->bgpc = (BGP**) realloc(bgp, (*bgCounter+2) * sizeof(BGP*)); //+2 bc counter starts at -1
+				}
+				//add new process to bgp
+				bgp->bgpc[*bgCounter+1] = (BGP *)calloc(100, (sizeof(BGP)));
+				bgp->bgpc[*bgCounter+1]->cmd = (char *) calloc(100, (strlen(cmd)+1) * sizeof(char));
+				strcpy(bgp->bgpc[*bgCounter+1]->cmd, cmd); 
+				bgp->bgpc[*bgCounter+1]->pid = pid;
+				bgp->bgpc[*bgCounter+1]->position = *bgCounter+1;
+				*counter = *bgCounter + 1;
+				printf("[%d] [%d]\n",*bgCounter+1, pid);
+			} else{
+				waitpid(pid, &status, 0);
+				*counter = *counter + 1;
+			}
+		}
+	}
+}
+
+char * findPath(char * instr, char * path)
+{
+	int size = 5;
+	char * newpath;
+	char *pathcopy = (char*) calloc(100, (strlen(path)+1)*sizeof(char));
+	strcpy(pathcopy, path);
+	
+	newpath = strtok(pathcopy, ":");
+	char * concat2 = (char *)calloc(100, sizeof(char)*size);
+	bool file_flag1 = false;
+	while(newpath != NULL)
+	{
+		strcpy(concat2, newpath);
+		strcat(concat2, "/");
+		strcat(concat2, instr);
+		if(exists(concat2) && check_regular(concat2))
+		{
+			file_flag1 = true;
+			break;
+		}
+		strcpy(concat2,"");
+		newpath = strtok(NULL, ":");
+	
+	}
+	if(file_flag1 == true)
+		return(concat2);
+}
+
+bool exists(const char *fname){
+  if(access(fname, F_OK) != -1){
+    //printf("%s\n", "file exists");
+    return true;
+  }
+  else {
+    return false;
+  }
+}
+
+bool check_regular(const char *fname){
+  struct stat file_stat;
+  stat(fname, &file_stat);
+  return S_ISREG(file_stat.st_mode);
+}
+
+void getTokens(instruction* instr_ptr, char** cmd)
+{
+        int i;
+        for(i =1; i < instr_ptr->numTokens; i++){
+                if ((instr_ptr->tokens)[i-1] != NULL)
+                        cmd[i] = "";
+        }
+        for(i =1; i < instr_ptr->numTokens; i++){
+                if ((instr_ptr->tokens)[i-1] != NULL)
+                        cmd[i] = instr_ptr->tokens[i];
+        }
+}
+
+bool check_built_in(instruction* instr_ptr, char** cmd){
+	if((strcmp(instr_ptr->tokens[0], "echo") == 0)){
+		cmd[0] = "echo";
+		return true;
+	}
+	if((strcmp(instr_ptr->tokens[0], "exit") == 0)){
+		cmd[0] = "exit";
+		return true;
+	}
+	if((strcmp(instr_ptr->tokens[0], "cd") == 0)){
+		cmd[0] = "cd";
+		return true;
+	}
+	if((strcmp(instr_ptr->tokens[0], "jobs") == 0)){
+		cmd[0] = "jobs";
+		return true;
+	}
+	return false;
+}
+
+void my_execute(char **cmd) {
+  int status;
+  pid_t pid = fork();
+  if (pid == -1) {
+    //Error
+    exit(1);
+  }
+  else if (pid == 0) {
+    //Child
+                if(cmd[0] == "echo"){
+                        if(strncmp(cmd[1], "$", 1) == 0){
+                                cmd[1]++;
+                                if(getenv(cmd[1]) != NULL){
+                                        cmd[1] = getenv(cmd[1]);
+                                }
+                                else {
+                                        printf("%s\n", "Error: Environmental variable does not exist!");
+                                        exit(1);
+                                }
+                        }
+                        printf("%s\n", cmd[1]);
+                        exit(0);
+                }
+                else if(cmd[0] == "cd"){
+                        //printf("%s\n", cmd[1]);
+                        if((strcmp(cmd[1], "$HOME") == 0) || cmd[1] == ""){
+                                printf("%s\n", cmd[1]);
+                                if(chdir(getenv("HOME")) == 0){
+                                        setenv("PWD", getenv("HOME"), 1);
+                                }
+                        }
+                        else{
+                                char* fullpath = calloc(512, sizeof(char *));
+                                char* ptr = calloc(512, sizeof(char *));
+                                //ptr = realpath(cmd[1], fullpath);
+                                //printf("%s\n", ptr);
+                                //free(fullpath);
+                                //free(ptr);
+                                if((ptr = realpath(cmd[1], fullpath)) != NULL){
+                                        if(chdir(ptr)== 0){
+                                                setenv("PWD", ptr, 1);
+                                            }
+                                }
+                                else {
+                                        printf("%s\n", "Error: Directory does not exist!");
+                                }
+                        }
+                }
+                else {
+        execv(cmd[0], cmd);
+        printf("Problem executing %s\n", cmd[0]);
+        exit(1);
+                }
+  }
+  else {
+    //Parent
+    waitpid(pid, &status, 0);
+  }
+}
+
+void singlePipe(instruction* instr2_ptr, instruction* instr3_ptr)
+{
+	
+    int status;
+
+	pid_t pid;
+	pid_t pid2;
+	int fd[2];
+		
+		
+		
+	pid = fork();
+	if(pid==0) 
+	{
+		pipe(fd);
+		pid2 = fork();
+		if(pid2 == 0) 
+		{
+			close(1);
+			dup(fd[1]);
+			close(fd[0]);
+			close(fd[1]);
+			execv(instr2_ptr->tokens[0], instr2_ptr->tokens);
+			printf("fail1");
+				
+		}
+		else 
+		{
+			close(0);
+			dup(fd[0]);
+			close(fd[0]);
+			close(fd[1]);
+			execvp(instr3_ptr->tokens[0], instr3_ptr->tokens);
+		}
+	}
+	else 
+	{
+		close(fd[0]);
+		close(fd[1]);
+		waitpid(pid2, &status, 0);
+		waitpid(pid, &status, 0);
+			
+	}
+	
+}
+void doublePipe(instruction* instr4_ptr, instruction* instr5_ptr, instruction* instr6_ptr)
+{
+
+		int status;
+		pid_t pid;
+		pid_t pid2;
+		pid_t pid3;
+		int fd[2];
+		int fd2[2];
+		
+	
+		pid = fork();
+
+		if(pid == 0)
+		{
+	
+			pipe(fd);
+			pipe(fd2);
+			pid2 = fork();
+			if(pid2 == 0)
+			{
+		
+				pid3 = fork();
+				if(pid3 == 0)
+				{
+			
+			
+					close(0);
+					dup(fd2[0]);
+					close(fd[0]);
+					close(fd[1]);
+					close(fd2[0]);
+					close(fd2[1]);
+					execv(instr6_ptr->tokens[0], instr6_ptr->tokens);
+					printf("Didnt work third\n");
+				  
+					
+				}
+				else
+				{
+				
+				
+					close(0);
+					dup(fd[0]);
+					close(1);
+					dup(fd2[1]);
+					close(fd[0]);
+					close(fd[1]);
+					close(fd2[0]);
+					close(fd2[1]);
+					execv(instr5_ptr->tokens[0], instr5_ptr->tokens);
+					printf("Didnt work after\n");
+					
+				}
+			}
+			else
+			{
+	
+					close(1);
+					dup(fd[1]);
+					close(fd[0]);
+					close(fd[1]);
+					close(fd2[0]);
+					close(fd2[1]);
+					execv(instr4_ptr->tokens[0], instr4_ptr->tokens); 
+					printf("Didnt work before\n");
+			}
+		}
+		else
+		{
+			close(fd[0]);
+			close(fd[1]);
+			close(fd2[0]);
+			close(fd2[1]);
+			waitpid(pid3, &status, 0);
+			waitpid(pid2, &status, 0);
+			waitpid(pid, &status, 0);
+		}
+			
+			
+    
+}
+
+bool checkEnvironmental(instruction* instr_ptr)
+{
+	int count = 0;
+	int i;
+	for (i = 0; i < instr_ptr->numTokens; i++)
+	{
+		if((instr_ptr->tokens)[i] != NULL)
+			if((instr_ptr->tokens)[i][0] == '$')
+			{
+				count++;
+				return true;
+			}
+
+	}
+	if (count == 0)
+		return false;
+}
+void expandEnvironmental(instruction* instr_ptr)
+{
+	char * environmental = (char*)calloc(1000, sizeof(char));
+	
+	int i;
+	for (i = 0; i < instr_ptr->numTokens; i++)
+	{
+		if ((instr_ptr->tokens)[i] != NULL)
+		{
+			if(sscanf((instr_ptr->tokens)[i], "$%s", environmental) == 1)
+			{
+				(instr_ptr->tokens)[i] = (char *) realloc((instr_ptr->tokens)[i], (strlen(getenv(environmental))+1)*sizeof(char) );
+				strcpy((instr_ptr->tokens)[i], getenv(environmental));
+
+			//	sprintf(expanded, "%s", getenv(environmental));
+	//			expanded = getenv(environmental);
+				
+			}
+		}
+		
+	}
+	free(environmental);
+}
+
+void pathParse(char* path, char* fullpath)
+{
+	    char currdir[]="/./";
+	char currdiralone[]=".";
+	char currdirstart[]="./";
+	char currdirend[]="/.";
+	char prevdir[]="/../";
+	char prevdiralone[]="..";
+	char prevdirstart[]="../";
+	char prevdirend[]= "/..";
+	char home[]="~/";
+	char homealone[] = "~";
+	char homewrong1[]="/~/";
+	char homewrong2[]="/~";
+    const char s[2] = "/";
+	char periods[3] = "..";
+    
+	int wronghome = 0; //flag that indicates an error in the path was found
+	
+    char * tokcopy = calloc(1000, sizeof(char));
+    char * strcp = calloc(1000, sizeof(char));
+	char * currentdirectory = calloc(1000, sizeof(char));
+    
+    strcpy(strcp, path);
+	int startflag = 0; // flag that if set to one says that the path starts with a /
+	if(strcp[0] == '/')
+		startflag = 1;
+	
+    char * curr;
+	char * curralone;
+	char * currstart;
+	char * currend;
+    curr = strstr(path, currdir);
+	curralone = strstr(path, currdiralone);
+	currstart = strstr(path, currdirstart);
+	currend = strstr(path, currdirend);
+	
+	char * prev;
+	char * prevalone;
+	char * prevstart;
+	char * prevend;
+	prev = strstr(path, prevdir);
+	prevalone = strstr(path, prevdiralone);
+	prevstart = strstr(path, prevdirstart);
+	prevend = strstr(path, prevdirend);
+	
+	char * ho;
+	char * hoalone;
+	char * howrong1;
+	char * howrong2;
+	ho = strstr(path, home);
+	hoalone = strstr(path, homealone);
+	howrong1 = strstr(path, homewrong1);
+	howrong2 = strstr(path, homewrong2);
+
+	int currflag = 0; //set to one if . appears in path
+	int prevflag = 0; //set to one if .. appears in path
+
+
+	sprintf(currentdirectory, "%s", getenv("PWD"));
+	int x;
+	int slashcount = 0;
+	int checkslash = 0;
+	int newlength = 0;
+	for(x=0; x <= strlen(currentdirectory); x++)
+		if(currentdirectory[x] == '/')
+			slashcount++;
+	for(x=0; x < strlen(currentdirectory); x++)
+	{
+		if(currentdirectory[x] == '/')
+			checkslash++;
+		if(checkslash == slashcount)
+		{
+			newlength = x;
+			break;
+		}
+				
+	}
+	char previousdirectory[newlength+1];
+	for(x=0; x<newlength; x++)
+	{
+		previousdirectory[x] = currentdirectory[x];
+	}
+//	printf("Current directory: %s\n", getenv("PWD"));
+//	printf("Previous directory: %s\n", previousdirectory);
+	
+
+	if(startflag == 0 && strcp[0] != '.' && strcp[0] != '~')
+	{
+		sprintf(fullpath,"%s", getenv("PWD"));
+		strcat(fullpath, s);
+	//	strcat(fullpath, path);
+	}
+	
+	
+	if(prev)
+	{
+		if(strcmp(currentdirectory,s)==0)
+			sprintf(fullpath, "%s", "Error! In root directory!");
+			
+		else
+		{
+			prevflag = 1;
+			strcpy(prev, previousdirectory);
+			sprintf(fullpath, "%s", path);
+			char * newtok;
+			newtok = strtok(strcp,s);
+	
+			int trigflad = 0;
+			while(newtok != NULL)
+			{
+				strcpy(tokcopy, newtok);
+				if(strcmp(tokcopy,periods)==0)
+				{
+					trigflad = 1;
+					
+				}
+		
+		
+				if(trigflad == 1)
+				{
+					if(strcmp(tokcopy,periods)!=0)
+					{
+						strcat(fullpath,s);
+						strcat(fullpath, tokcopy);
+					}
+				}
+	
+				newtok = strtok(NULL,s);
+			}
+		}
+		
+	}
+	else if(prevstart && prevflag == 0)
+	{
+		if(strcmp(currentdirectory,s)==0)
+			sprintf(fullpath, "%s", "Error! In root directory!");
+		else
+		{
+			prevflag = 1;
+			strcpy(prevstart, previousdirectory);
+			sprintf(fullpath, "%s", path);
+			char * newtok;
+			newtok = strtok(strcp,s);
+	
+			int trigflad = 0;
+			while(newtok != NULL)
+			{
+				strcpy(tokcopy, newtok);
+				if(strcmp(tokcopy,periods)==0)
+				{
+					trigflad = 1;
+					
+				}
+		
+		
+				if(trigflad == 1)
+				{
+					if(strcmp(tokcopy,periods)!=0)
+					{
+						strcat(fullpath,s);
+						strcat(fullpath, tokcopy);
+					}
+				}
+	
+				newtok = strtok(NULL,s);
+			}
+    
+		}
+	}
+	else if(prevend && prevflag == 0)
+	{
+		if(strcmp(currentdirectory,s)==0)
+			sprintf(fullpath, "%s", "Error! In root directory!");
+		else
+		{
+			prevflag = 1;
+			strcpy(prevend, previousdirectory);
+			sprintf(fullpath, "%s", path);
+			char * newtok;
+			newtok = strtok(strcp,s);
+	
+			int trigflad = 0;
+			while(newtok != NULL)
+			{
+				strcpy(tokcopy, newtok);
+				if(strcmp(tokcopy,periods)==0)
+				{
+					trigflad = 1;
+					
+				}
+		
+		
+				if(trigflad == 1)
+				{
+					if(strcmp(tokcopy,periods)!=0)
+					{
+						strcat(fullpath,s);
+						strcat(fullpath, tokcopy);
+					}
+				}
+	
+				newtok = strtok(NULL,s);
+			}
+		}
+		
+	}
+	else if(prevalone && prevflag == 0)
+	{
+		if(strcmp(currentdirectory,s)==0)
+			sprintf(fullpath, "%s", "Error! In root directory!");
+		else
+		{
+			prevflag = 1;
+			strcpy(prevalone, previousdirectory);
+			sprintf(fullpath, "%s", path);
+			char * newtok;
+			newtok = strtok(strcp,s);
+	
+			int trigflad = 0;
+			while(newtok != NULL)
+			{
+				strcpy(tokcopy, newtok);
+				if(strcmp(tokcopy,periods)==0)
+				{
+					trigflad = 1;
+					
+				}
+		
+		
+				if(trigflad == 1)
+				{
+					if(strcmp(tokcopy,periods)!=0)
+					{
+						strcat(fullpath,s);
+						strcat(fullpath, tokcopy);
+					}
+				}
+	
+				newtok = strtok(NULL,s);
+			}
+		}
+	}
+	
+	if(curr)
+    {
+		currflag = 1;
+		strcpy(curr,getenv("PWD"));
+		sprintf(fullpath, "%s", path);   
+		char * newtok;
+		newtok = strtok(strcp,s);
+
+		int trigflad = 0;
+		while(newtok != NULL)
+		{
+			strcpy(tokcopy, newtok);
+			if(*newtok =='.')
+				trigflad = 1;
+	
+	
+			if(trigflad == 1)
+			{
+				if(*newtok != '.')
+				{
+					strcat(fullpath,s);
+					strcat(fullpath, tokcopy);
+				}
+			}
+
+			newtok = strtok(NULL,s);
+		}
+    
+
+	}
+	else if(currstart && currflag == 0 && prevflag == 0)
+	{
+		currflag = 1;
+		strcpy(currstart,getenv("PWD"));
+		sprintf(fullpath, "%s", path);   
+		char * newtok;
+		newtok = strtok(strcp,s);
+
+		int trigflad = 0;
+		while(newtok != NULL)
+		{
+			strcpy(tokcopy, newtok);
+			if(*newtok =='.')
+				trigflad = 1;
+	
+	
+			if(trigflad == 1)
+			{
+				if(*newtok != '.')
+				{
+					strcat(fullpath,s);
+					strcat(fullpath, tokcopy);
+				}
+			}
+
+			newtok = strtok(NULL,s);
+		}
+	}
+	else if(currend && currflag == 0 && prevflag == 0)
+	{
+		currflag = 1;
+		strcpy(currend,getenv("PWD"));
+		sprintf(fullpath, "%s", path);   
+		char * newtok;
+		newtok = strtok(strcp,s);
+
+		int trigflad = 0;
+		while(newtok != NULL)
+		{
+			strcpy(tokcopy, newtok);
+			if(*newtok =='.')
+				trigflad = 1;
+	
+	
+			if(trigflad == 1)
+			{
+				if(*newtok != '.')
+				{
+					strcat(fullpath,s);
+					strcat(fullpath, tokcopy);
+				}
+			}
+
+			newtok = strtok(NULL,s);
+		}
+	}
+	else if(curralone && currflag == 0 && prevflag == 0)
+	{
+		currflag = 1;
+		strcpy(curralone,getenv("PWD"));
+		sprintf(fullpath, "%s", path);   
+		char * newtok;
+		newtok = strtok(strcp,s);
+
+		int trigflad = 0;
+		while(newtok != NULL)
+		{
+			strcpy(tokcopy, newtok);
+			if(*newtok =='.')
+				trigflad = 1;
+	
+	
+			if(trigflad == 1)
+			{
+				if(*newtok != '.')
+				{
+					strcat(fullpath,s);
+					strcat(fullpath, tokcopy);
+				}
+			}
+
+			newtok = strtok(NULL,s);
+		}
+	}
+	
+	if(ho)
+	{
+		
+		strcpy(ho,getenv("HOME"));
+		sprintf(fullpath, "%s", path);   
+		char * newtok;
+		newtok = strtok(strcp,s);
+
+		int trigflad = 0;
+		while(newtok != NULL)
+		{
+			strcpy(tokcopy, newtok);
+			if(*newtok =='~')
+				trigflad = 1;
+	
+	
+			if(trigflad == 1)
+			{
+				if(*newtok != '~')
+				{
+					strcat(fullpath,s);
+					strcat(fullpath, tokcopy);
+				}
+			}
+
+			newtok = strtok(NULL,s);
+		}
+	}
+	
+	
+	if(howrong1 || howrong2)
+	{
+		wronghome = 1;
+		char error[] = "Error! '~' has to come at beginning of path!";
+		sprintf(fullpath,"%s\n", error);
+	}
+	else if(hoalone && strlen(strcp) == 1 && wronghome == 0)
+	{
+		strcpy(hoalone,getenv("HOME"));
+		sprintf(fullpath, "%s", path);   
+		char * newtok;
+		newtok = strtok(strcp,s);
+
+		int trigflad = 0;
+		while(newtok != NULL)
+		{
+			strcpy(tokcopy, newtok);
+			if(*newtok =='~')
+				trigflad = 1;
+	
+	
+			if(trigflad == 1)
+			{
+				if(*newtok != '~')
+				{
+					strcat(fullpath,s);
+					strcat(fullpath, tokcopy);
+				}
+			}
+
+			newtok = strtok(NULL,s);
+		}
+	}
+	
+
+
+
+
+
+    
+    free(strcp);
+    free(tokcopy);
+}
