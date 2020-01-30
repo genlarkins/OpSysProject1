@@ -183,14 +183,14 @@ int main(){
 				}
 				else if(exeType == 0){
 					//normal execution
-                    char ** cmd = calloc(1000, sizeof(char));
+                    /*char ** cmd = calloc(1000, sizeof(char));
                     char buf[PATH_MAX];                                                                                                    
                     char* fullPath = calloc(512, sizeof(char *));
                     if(check_built_in(&instr, cmd)){
                         getTokens(&instr, cmd);
                         my_execute(cmd);
-                        /*file_flag = true;
-                        built_in = true;*/
+                        //file_flag = true;
+                        //built_in = true;
                         //break;
                     }
                     else if(fullPath = realpath(instr.tokens[0], buf)){
@@ -201,7 +201,45 @@ int main(){
                     }
                     else{
                         printf("%s\n", "Error: Invalid command");
-                    }
+                    }*/
+                    char * path = strtok(getenv("PATH"), ":");
+                    char * concat = (char *)malloc(sizeof(char)*size);
+                    bool file_flag = false;
+		            bool built_in = false;
+                    while(path != NULL){
+			        //path concatenated with provided pathname unless it is a built-in
+			         if(check_built_in(&instr, cmd)){
+				        getTokens(&instr, cmd);
+				        my_execute(cmd);
+				        file_flag = true;
+				        built_in = true;
+				        break;
+			         }
+			         else {
+				        printf("%s\n", getenv("PATH"));
+				        //printf("%s\n", path);
+				        strcpy(concat, path);
+				        strcat(concat, "/");
+				        strcat(concat, instr.tokens[0]);
+				        printf("%s\n", concat);
+			         }
+			         if(exists(concat) && check_regular(concat)){
+				        file_flag = true;
+				        break;
+			         }
+			         strcpy(concat, "");
+			         //strcpy(path2, path);
+			         path = strtok(NULL, ":");
+		          }
+                  if(!file_flag){
+                    printf("%s\n", "File does not exist or is not regular");
+                    //printf("%s\n", concat);
+                  }
+                    else if (!built_in){
+                        cmd[0] = concat;
+                        getTokens(&instr, cmd);
+                        my_execute(cmd);
+                }
 				}
 				else if(exeType == 1){
 					// io redirection
