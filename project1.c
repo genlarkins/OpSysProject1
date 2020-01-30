@@ -45,6 +45,7 @@ void ioRedir2(instruction filepath, instruction instr, char* file1, char* file2,
 void printJobs(BGcontain *bgp, int jobs);
 void my_execute(char **cmd);
 void getTokens(instruction* instr_ptr, char** cmd);
+bool check_built_in(instruction* instr_ptr, char** cmd);
 
 
 //every execution must have: BGcontain *bgp, int* bgCounter, int*counter, int* jobs, int bgTrigger
@@ -649,6 +650,26 @@ void getTokens(instruction* instr_ptr, char** cmd)
                 if ((instr_ptr->tokens)[i-1] != NULL)
                         cmd[i] = instr_ptr->tokens[i];
         }
+}
+
+bool check_built_in(instruction* instr_ptr, char** cmd){
+	if((strcmp(instr_ptr->tokens[0], "echo") == 0)){
+		cmd[0] = "echo";
+		return true;
+	}
+	if((strcmp(instr_ptr->tokens[0], "exit") == 0)){
+		cmd[0] = "exit";
+		return true;
+	}
+	if((strcmp(instr_ptr->tokens[0], "cd") == 0)){
+		cmd[0] = "cd";
+		return true;
+	}
+	if((strcmp(instr_ptr->tokens[0], "jobs") == 0)){
+		cmd[0] = "jobs";
+		return true;
+	}
+	return false;
 }
 
 void my_execute(char **cmd) {
