@@ -179,13 +179,14 @@ int main(){
 				}
 				else if(exeType == 0){
 					//normal execution
+                    char ** cmd = calloc(1000, sizeof(char));
                     char buf[PATH_MAX];                                                                                                    
                     char* fullPath = calloc(512, sizeof(char *));
                     if(check_built_in(&instr, cmd)){
                         getTokens(&instr, cmd);
                         my_execute(cmd);
-                        file_flag = true;
-                        built_in = true;
+                        /*file_flag = true;
+                        built_in = true;*/
                         //break;
                     }
                     else if(fullPath = realpath(instr.tokens[0], buf)){
