@@ -2,7 +2,7 @@
 
 Problems with executing "normal" commands:
 
-	-Executing a non-existing command followed by existing commands will cause those commands to not execute. 	This is due to a problem with    altering the $PATH file.
+	-Executing a non-existing command followed by existing commands will cause those commands to not execute. This is due to a problem with altering the $PATH file.
   
 Problems with executing built-in commands:
 
