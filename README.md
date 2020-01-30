@@ -1,4 +1,19 @@
 # OpSysProject1
+Team Members: Madison Vandersluis, Jared Rice, and Genevieve Larkins
+Division of Labor: 
+  Madison Vandersluis: prompt, i/o redirection, background processes
+  Jared Rice: $PATH resolution, execution, built-ins
+  Genevieve Larkins: environmental variables, shortcut resolution, pipes
+  
+Contents of Tar Archive:
+  Makefile
+  Project1.c
+  README
+  
+How to Compile Executables Using Makefile:
+  We only have one file and we execute that by using gcc -o shell proj1.c
+
+
 Prompt works as expected.
 Exit leaves function.
 
@@ -20,3 +35,5 @@ BGProcess:
 Invalid format signals error
 Issues: Partially works for CMD < FILE &. But the result of the command prints after
 Not implemented for normal execution or piping
+
+Pipe segfaults
