@@ -43,6 +43,9 @@ void clearBGcontain(BGcontain* bg);
 void ioRedir(instruction instr, instruction cmd, char* file, int i_o, int trigger, BGcontain *bgp, int* bgCounter, int*counter, int* jobs);
 void ioRedir2(instruction filepath, instruction instr, char* file1, char* file2, int trigger, BGcontain *bgp, int* bgCounter, int*counter, int* jobs);
 void printJobs(BGcontain *bgp, int jobs);
+void my_execute(char **cmd);
+void getTokens(instruction* instr_ptr, char** cmd);
+
 
 //every execution must have: BGcontain *bgp, int* bgCounter, int*counter, int* jobs, int bgTrigger
 
