@@ -202,8 +202,9 @@ int main(){
                     else{
                         printf("%s\n", "Error: Invalid command");
                     }*/
+                    char ** cmd = calloc(1000, sizeof(char));
                     char * path = strtok(getenv("PATH"), ":");
-                    char * concat = (char *)malloc(sizeof(char)*size);
+                    char * concat = calloc(512, sizeof(char *));
                     bool file_flag = false;
 		            bool built_in = false;
                     while(path != NULL){
