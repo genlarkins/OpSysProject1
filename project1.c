@@ -72,6 +72,9 @@ int main(){
 	
 	BGcontain bgps;
 	
+        char ** cmd = calloc(1000, sizeof(char));
+        char * path = strtok(getenv("PATH"), ":");
+        char * concat = calloc(512, sizeof(char *));
 	do {
 		prompt(); //prmpts user to enter stuff
 		loopcount++;
@@ -203,11 +206,11 @@ int main(){
                     else{
                         printf("%s\n", "Error: Invalid command");
                     }*/
-                    char ** cmd = calloc(1000, sizeof(char));
+                    /*char ** cmd = calloc(1000, sizeof(char));
                     char * path = strtok(getenv("PATH"), ":");
-                    char * concat = calloc(512, sizeof(char *));
+                    char * concat = calloc(512, sizeof(char *));*/
                     bool file_flag = false;
-		            bool built_in = false;
+		    bool built_in = false;
                     while(path != NULL){
 			        //path concatenated with provided pathname unless it is a built-in
 			         if(check_built_in(&instr, cmd)){
@@ -218,12 +221,12 @@ int main(){
 				        break;
 			         }
 			         else {
-				        printf("%s\n", getenv("PATH"));
+				        //printf("%s\n", getenv("PATH"));
 				        //printf("%s\n", path);
 				        strcpy(concat, path);
 				        strcat(concat, "/");
 				        strcat(concat, instr.tokens[0]);
-				        printf("%s\n", concat);
+				        //printf("%s\n", concat);
 			         }
 			         if(exists(concat) && check_regular(concat)){
 				        file_flag = true;
