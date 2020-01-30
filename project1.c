@@ -41,7 +41,7 @@ void bgProcess(char** data, BGcontain *bgp, int* bgCounter, int* jobs);
 void checkBGP(int bgCounter, BGcontain* bg, int* jobs, int* counter);
 void clearBGcontain(BGcontain* bg);
 void ioRedir(instruction instr, instruction cmd, char* file, int i_o, int trigger, BGcontain *bgp, int* bgCounter, int*counter, int* jobs);
-void ioRedir2(instruction instr, char* file1, char* file2, int trigger, BGcontain *bgp, int* bgCounter, int*counter, int* jobs);
+void ioRedir2(instruction filepath, instruction instr, char* file1, char* file2, int trigger, BGcontain *bgp, int* bgCounter, int*counter, int* jobs);
 void printJobs(BGcontain *bgp, int jobs);
 
 //every execution must have: BGcontain *bgp, int* bgCounter, int*counter, int* jobs, int bgTrigger
@@ -138,6 +138,7 @@ int main(){
 		//bgcheck
 		if(jobs>0){
 			checkBGP(bgCount, &bgps, &jobs, &counter);
+			printf("done\n");
 		}
 		
 		if(instr.tokens[0] == NULL || strcmp(instr.tokens[0],"exit") != 0){ //if token not exit
@@ -206,20 +207,21 @@ int main(){
 					if(ioCount == 1){
 						if(strcmp(instr.tokens[pos],">")==0){ //output
 							printf("single output\n");
-							ioRedir(ioR, instr.tokens[pos+1], 0, bgTrigger, &bgps, &bgCount, &counter, &jobs);
+							ioRedir(ioR, instr, instr.tokens[pos+1], 0, bgTrigger, &bgps, &bgCount, &counter, &jobs);
 						}
 						else if(strcmp(instr.tokens[pos],"<")==0) {
 							printf("single input: %s\n", instr.tokens[pos]);
-							ioRedir(ioR, instr.tokens[pos+1], 1, bgTrigger, &bgps, &bgCount, &counter, &jobs);
+							printf("%d\n", bgCount);
+							ioRedir(ioR, instr, instr.tokens[pos+1], 1, bgTrigger, &bgps, &bgCount, &counter, &jobs);
 						}
 					} else {
 						if(strcmp(instr.tokens[pos],"<")==0){ //input
 							printf("put first\n");
-							ioRedir2(ioR, instr.tokens[pos+1], instr.tokens[pos+3], bgTrigger, &bgps, &bgCount, &counter, &jobs);
+							ioRedir2(ioR, instr, instr.tokens[pos+1], instr.tokens[pos+3], bgTrigger, &bgps, &bgCount, &counter, &jobs);
 						}
 						else if(strcmp(instr.tokens[pos],">")==0){
 							printf("output first\n");
-							ioRedir2(ioR, instr.tokens[pos+3], instr.tokens[pos+1], bgTrigger, &bgps, &bgCount, &counter, &jobs);
+							ioRedir2(ioR, instr, instr.tokens[pos+3], instr.tokens[pos+1], bgTrigger, &bgps, &bgCount, &counter, &jobs);
 						}
 					}
 					
@@ -308,7 +310,7 @@ void checkBGP(int bgCounter, BGcontain* bg, int* jobs, int* counter){
 	int i;
 	int g;
 	//printf("b %d\n", bg.bgpc[0]->pid);
-	for(i=0; i<*counter+1; i++){
+	for(i=0; i<bgCounter+1; i++){
 		g = waitpid(bg->bgpc[i]->pid, &status, WNOHANG);
 		//check if position is -1
 		if(g == 0){ //not done
@@ -316,10 +318,12 @@ void checkBGP(int bgCounter, BGcontain* bg, int* jobs, int* counter){
 		}
 		else if(g == bg->bgpc[i]->pid) {
 			//is done
-			printf("[%d]+\t %s\n", bg->bgpc[i]->position, bg->bgpc[i]->cmd);
+			printf("[%d]+ %s\n", bg->bgpc[i]->position, bg->bgpc[i]->cmd);
 			bg->bgpc[i]->position = -1;
+			printf("a\n");
 			*counter = *counter + 1;
 			*jobs = *jobs - 1;
+			printf("c\n");
 			//change position to -1
 		}
 	}
@@ -336,6 +340,24 @@ void ioRedir(instruction instr, instruction cmd, char* file, int i_o, int trigge
 		}
 		else {
 			pid_t pid = fork();
+			
+			int lengthCMD=0;
+			char* cmd2;
+			int x;
+			for(x=0; x<cmd.numTokens;x++){
+				if(cmd.tokens[x] != NULL){
+					lengthCMD = lengthCMD + strlen(cmd.tokens[x]) + 1;
+				}
+			}
+			cmd2 = (char*) calloc(100, (lengthCMD + 1)*sizeof(char));
+			for(x=0; x<cmd.numTokens;x++){
+				if(cmd.tokens[x] != NULL){
+					strcat(cmd2, cmd.tokens[x]);
+					strcat(cmd2, " ");
+				}
+			}
+			printf("cmd line: %s\n", cmd2);
+			
 			if(pid == 0){
 				close(STDOUT_FILENO);
 				dup(fd);
@@ -347,9 +369,27 @@ void ioRedir(instruction instr, instruction cmd, char* file, int i_o, int trigge
 				exit(1);
 			}
 			else {
-				waitpid(pid, &status, 0);
 				close(fd);
-				*counter = *counter+1;
+				if(trigger!=0){
+					//bg stuff
+					if (*bgCounter == -1){ //if no bgp yet
+						bgp->bgpc = (BGP**) calloc(100, sizeof(BGP*));
+					}
+					else { //otherwise add an additional one
+						bgp->bgpc = (BGP**) realloc(bgp, (*bgCounter+2) * sizeof(BGP*)); //+2 bc counter starts at -1
+					}
+					//add new process to bgp
+					bgp->bgpc[*bgCounter+1] = (BGP *)calloc(100, (sizeof(BGP)));
+					bgp->bgpc[*bgCounter+1]->cmd = (char *) calloc(100, (strlen(cmd2)+1) * sizeof(char));
+					strcpy(bgp->bgpc[*bgCounter+1]->cmd, cmd2); 
+					bgp->bgpc[*bgCounter+1]->pid = pid;
+					bgp->bgpc[*bgCounter+1]->position = *bgCounter+1;
+					*bgCounter = *bgCounter + 1;
+					printf("[%d] [%d]\n",*bgCounter, pid);
+				} else{
+					waitpid(pid, &status, 0);
+					*counter = *counter+1;
+				}
 			}
 		}
 	}
@@ -363,6 +403,23 @@ void ioRedir(instruction instr, instruction cmd, char* file, int i_o, int trigge
 		}
 		else{
 			pid_t pid = fork();
+			
+			int lengthCMD=0;
+			char* cmd2;
+			int x;
+			for(x=0; x<cmd.numTokens;x++){
+				if(cmd.tokens[x] != NULL){
+					lengthCMD = lengthCMD + strlen(cmd.tokens[x]) + 1;
+				}
+			}
+			cmd2 = (char*) calloc(100, (lengthCMD + 1)*sizeof(char));
+			for(x=0; x<cmd.numTokens;x++){
+				if(cmd.tokens[x] != NULL){
+					strcat(cmd2, cmd.tokens[x]);
+					strcat(cmd2, " ");
+				}
+			}
+			
 			if(pid == 0){
 				//child
 				close(STDIN_FILENO);
@@ -372,36 +429,36 @@ void ioRedir(instruction instr, instruction cmd, char* file, int i_o, int trigge
 				//call execution using fileData as input
 				instr.tokens[0] = (char*) realloc(instr.tokens[0], (strlen(findPath(instr.tokens[0], getenv("PATH")))+1) * sizeof(char));
 				strcpy(instr.tokens[0], findPath(instr.tokens[0], getenv("PATH")));
-				printf("Path is Now: %s\n", instr.tokens[0]);
-				execv(instr.tokens[0],instr.tokens); 
+				execv(instr.tokens[0],instr.tokens);
 				printf("Problem executing %s\n", instr.tokens[0]);
 				exit(1);
 			}
 			else {
 				//parent
-				waitpid(pid, &status, 0);
 				close(fd);
-				*counter = *counter+1;
 				if(trigger!=0){
-				//bg stuff
-				if (*bgCounter == -1){ //if no bgp yet
-					bgp->bgpc = (BGP**) calloc(100, sizeof(BGP*));
+					printf("In bg stuff\n");
+					//bg stuff
+					if (*bgCounter == -1){ //if no bgp yet
+						bgp->bgpc = (BGP**) calloc(100, sizeof(BGP*));
+					}
+					else { //otherwise add an additional one
+						bgp->bgpc = (BGP**) realloc(bgp, (*bgCounter+2) * sizeof(BGP*)); //+2 bc counter starts at -1
+					}
+					//add new process to bgp
+					bgp->bgpc[*bgCounter+1] = (BGP *)calloc(100, (sizeof(BGP)));
+					bgp->bgpc[*bgCounter+1]->cmd = (char *) calloc(100, (strlen(cmd2)+1) * sizeof(char));
+					strcpy(bgp->bgpc[*bgCounter+1]->cmd, cmd2); 
+					bgp->bgpc[*bgCounter+1]->pid = pid;
+					bgp->bgpc[*bgCounter+1]->position = *bgCounter+1;
+					*bgCounter = *bgCounter + 1;
+					*jobs = *jobs +1;
+					printf("[%d] [%d]\n",*bgCounter+1, pid);
+					waitpid(-1, &status, WNOHANG);
+				} else{
+					waitpid(pid, &status, 0);
+					*counter = *counter+1;
 				}
-				else { //otherwise add an additional one
-					bgp->bgpc = (BGP**) realloc(bgp, (*bgCounter+2) * sizeof(BGP*)); //+2 bc counter starts at -1
-				}
-				//add new process to bgp
-				bgp->bgpc[*bgCounter+1] = (BGP *)calloc(100, (sizeof(BGP)));
-				bgp->bgpc[*bgCounter+1]->cmd = (char *) calloc(100, (strlen(cmd)+1) * sizeof(char));
-				strcpy(bgp->bgpc[*bgCounter+1]->cmd, cmd); 
-				bgp->bgpc[*bgCounter+1]->pid = pid;
-				bgp->bgpc[*bgCounter+1]->position = *bgCounter+1;
-				*counter = *bgCounter + 1;
-				printf("[%d] [%d]\n",*bgCounter+1, pid);
-			} else{
-				*counter = *counter + 1;
-				waitpid(pid, &status, 0);
-			}
 			}
 		}
 	}
@@ -410,10 +467,10 @@ void ioRedir(instruction instr, instruction cmd, char* file, int i_o, int trigge
 		printf("Error: bad syntax");
 	}	
 }
-void ioRedir2(instruction instr, char* file1, char* file2, int trigger, BGcontain *bgp, int* bgCounter, int* counter, int* jobs){ //for when theres an input and outputint fd1, fd2, buff;
+void ioRedir2(instruction filepath, instruction instr, char* file1, char* file2, int trigger, BGcontain *bgp, int* bgCounter, int* counter, int* jobs){ //for when theres an input and outputint fd1, fd2, buff;
 	int fd1, fd2;
 	fd1 = open(file1, O_RDONLY);
-	fd2 = open(file2, O_CREAT | O_WRONLY | O_TRUNC);
+	fd2 = open(file2, O_CREAT | O_WRONLY | O_TRUNC, 666);
 	int status;
 	if(fd1==-1 && fd2 ==-1){
 		printf("Error opening one or more of the files.\n");
@@ -432,6 +489,7 @@ void ioRedir2(instruction instr, char* file1, char* file2, int trigger, BGcontai
 		for(x=0; x<instr.numTokens;x++){
 			if(instr.tokens[x] != NULL){
 				strcat(cmd, instr.tokens[x]);
+				strcat(cmd, " ");
 			}
 		}
 		
@@ -442,9 +500,9 @@ void ioRedir2(instruction instr, char* file1, char* file2, int trigger, BGcontai
 			close(STDOUT_FILENO);
 			dup(fd2);
 			close(fd2);
-			instr.tokens[0] = (char*) realloc(instr.tokens[0], strlen(findPath(instr.tokens[0], getenv("PATH"))) * sizeof(char));
-			strcpy(instr.tokens[0], findPath(instr.tokens[0], getenv("PATH")));
-			execv(instr.tokens[0],instr.tokens); 
+			filepath.tokens[0] = (char*) realloc(filepath.tokens[0], strlen(findPath(filepath.tokens[0], getenv("PATH"))) * sizeof(char));
+			strcpy(filepath.tokens[0], findPath(filepath.tokens[0], getenv("PATH")));
+			execv(filepath.tokens[0],filepath.tokens); 
 			printf("Problem executing %s\n", cmd);
 			exit(1);
 		}
@@ -468,8 +526,8 @@ void ioRedir2(instruction instr, char* file1, char* file2, int trigger, BGcontai
 				*counter = *bgCounter + 1;
 				printf("[%d] [%d]\n",*bgCounter+1, pid);
 			} else{
-				*counter = *counter + 1;
 				waitpid(pid, &status, 0);
+				*counter = *counter + 1;
 			}
 		}
 	}
