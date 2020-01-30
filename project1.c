@@ -43,6 +43,10 @@ void clearBGcontain(BGcontain* bg);
 void ioRedir(instruction instr, instruction cmd, char* file, int i_o, int trigger, BGcontain *bgp, int* bgCounter, int*counter, int* jobs);
 void ioRedir2(instruction filepath, instruction instr, char* file1, char* file2, int trigger, BGcontain *bgp, int* bgCounter, int*counter, int* jobs);
 void printJobs(BGcontain *bgp, int jobs);
+void my_execute(char **cmd);
+void getTokens(instruction* instr_ptr, char** cmd);
+bool check_built_in(instruction* instr_ptr, char** cmd);
+
 
 //every execution must have: BGcontain *bgp, int* bgCounter, int*counter, int* jobs, int bgTrigger
 
@@ -68,6 +72,9 @@ int main(){
 	
 	BGcontain bgps;
 	
+        char ** cmd = calloc(1000, sizeof(char));
+        char * path = strtok(getenv("PATH"), ":");
+        char * concat = calloc(512, sizeof(char *));
 	do {
 		prompt(); //prmpts user to enter stuff
 		loopcount++;
@@ -180,6 +187,64 @@ int main(){
 				}
 				else if(exeType == 0){
 					//normal execution
+                    /*char ** cmd = calloc(1000, sizeof(char));
+                    char buf[PATH_MAX];                                                                                                    
+                    char* fullPath = calloc(512, sizeof(char *));
+                    if(check_built_in(&instr, cmd)){
+                        getTokens(&instr, cmd);
+                        my_execute(cmd);
+                        //file_flag = true;
+                        //built_in = true;
+                        //break;
+                    }
+                    else if(fullPath = realpath(instr.tokens[0], buf)){
+                        printf("%s\n", fullPath);
+                        cmd[0] = fullPath;
+                        getTokens(&instr, cmd);
+                        my_execute(cmd);
+                    }
+                    else{
+                        printf("%s\n", "Error: Invalid command");
+                    }*/
+                    /*char ** cmd = calloc(1000, sizeof(char));
+                    char * path = strtok(getenv("PATH"), ":");
+                    char * concat = calloc(512, sizeof(char *));*/
+                    bool file_flag = false;
+		    bool built_in = false;
+                    while(path != NULL){
+			        //path concatenated with provided pathname unless it is a built-in
+			         if(check_built_in(&instr, cmd)){
+				        getTokens(&instr, cmd);
+				        my_execute(cmd);
+				        file_flag = true;
+				        built_in = true;
+				        break;
+			         }
+			         else {
+				        //printf("%s\n", getenv("PATH"));
+				        //printf("%s\n", path);
+				        strcpy(concat, path);
+				        strcat(concat, "/");
+				        strcat(concat, instr.tokens[0]);
+				        //printf("%s\n", concat);
+			         }
+			         if(exists(concat) && check_regular(concat)){
+				        file_flag = true;
+				        break;
+			         }
+			         strcpy(concat, "");
+			         //strcpy(path2, path);
+			         path = strtok(NULL, ":");
+		          }
+                  if(!file_flag){
+                    printf("%s\n", "File does not exist or is not regular");
+                    //printf("%s\n", concat);
+                  }
+                    else if (!built_in){
+                        cmd[0] = concat;
+                        getTokens(&instr, cmd);
+                        my_execute(cmd);
+                }
 				}
 				else if(exeType == 1){
 					// io redirection
@@ -575,4 +640,97 @@ bool check_regular(const char *fname){
   struct stat file_stat;
   stat(fname, &file_stat);
   return S_ISREG(file_stat.st_mode);
+}
+
+void getTokens(instruction* instr_ptr, char** cmd)
+{
+        int i;
+        for(i =1; i < instr_ptr->numTokens; i++){
+                if ((instr_ptr->tokens)[i-1] != NULL)
+                        cmd[i] = "";
+        }
+        for(i =1; i < instr_ptr->numTokens; i++){
+                if ((instr_ptr->tokens)[i-1] != NULL)
+                        cmd[i] = instr_ptr->tokens[i];
+        }
+}
+
+bool check_built_in(instruction* instr_ptr, char** cmd){
+	if((strcmp(instr_ptr->tokens[0], "echo") == 0)){
+		cmd[0] = "echo";
+		return true;
+	}
+	if((strcmp(instr_ptr->tokens[0], "exit") == 0)){
+		cmd[0] = "exit";
+		return true;
+	}
+	if((strcmp(instr_ptr->tokens[0], "cd") == 0)){
+		cmd[0] = "cd";
+		return true;
+	}
+	if((strcmp(instr_ptr->tokens[0], "jobs") == 0)){
+		cmd[0] = "jobs";
+		return true;
+	}
+	return false;
+}
+
+void my_execute(char **cmd) {
+  int status;
+  pid_t pid = fork();
+  if (pid == -1) {
+    //Error
+    exit(1);
+  }
+  else if (pid == 0) {
+    //Child
+                if(cmd[0] == "echo"){
+                        if(strncmp(cmd[1], "$", 1) == 0){
+                                cmd[1]++;
+                                if(getenv(cmd[1]) != NULL){
+                                        cmd[1] = getenv(cmd[1]);
+                                }
+                                else {
+                                        printf("%s\n", "Error: Environmental variable does not exist!");
+                                        exit(1);
+                                }
+                        }
+                        printf("%s\n", cmd[1]);
+                        exit(0);
+                }
+                else if(cmd[0] == "cd"){
+                        //printf("%s\n", cmd[1]);
+                        if((strcmp(cmd[1], "$HOME") == 0) || cmd[1] == ""){
+                                printf("%s\n", cmd[1]);
+                                if(chdir(getenv("HOME")) == 0){
+                                        setenv("PWD", getenv("HOME"), 1);
+                                }
+                        }
+                        else{
+                                char* fullpath = calloc(512, sizeof(char *));
+                                char* ptr = calloc(512, sizeof(char *));
+                                //ptr = realpath(cmd[1], fullpath);
+                                //printf("%s\n", ptr);
+                                //free(fullpath);
+                                //free(ptr);
+                                if((ptr = realpath(cmd[1], fullpath)) != NULL){
+                                        if(chdir(ptr)== 0){
+                                                setenv("PWD", ptr, 1);
+                                            }
+                                }
+                                else {
+                                        printf("%s\n", "Error: Directory does not exist!");
+                                }
+                        }
+                }
+                else {
+        execv(cmd[0], cmd);
+        printf("Problem executing %s\n", cmd[0]);
+        exit(1);
+                }
+  }
+  else {
+    //Parent
+    waitpid(pid, &status, 0);
+  }
 }
