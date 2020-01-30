@@ -23,10 +23,10 @@ typedef struct {
 
 void prompt(char* input);
 void bgProcess(char** data, BGcontain *bgp, int* counter);
-//void addProcess(char** data, BGP **bgp, int* counter);
-void checkBGP(int counter, BGcontain bg);
+void checkBGP(int counter, BGcontain* bg);
 void ioRedir(char** cmd, char* file, int i_o);
 void ioRedir2(char** cmd, char* file1, char* file2);
+void endBGP(int counter, BGcontain* bg);
 
 int main(){
 	//prompt user
@@ -48,13 +48,8 @@ int main(){
 			if(counter==0){ //will only run once
 				//run bgprocess
 				counter++;
-				char* cmd[3] = {"/bin/sleep","10", NULL};
+				char* cmd[3] = {"/bin/sleep","20", NULL};
 				bgProcess(cmd, &bgps, &bgCount);
-			}
-			if(counter==1){
-				char* cmd[2] = {"/bin/cat", NULL};
-				ioRedir2(cmd, "input.txt", "output.txt");
-				counter++;
 			}
 		}
 	}
@@ -85,13 +80,14 @@ void bgProcess(char** data, BGcontain *bgp, int *counter){
 	else { //otherwise add an additional one
 		bgp->bgpc = (BGP**) realloc(bgp, (*counter+2) * sizeof(BGP*)); //+2 bc counter starts at -1
 	}
-	//add new bgp
+	//add new process to bgp
 	bgp->bgpc[*counter+1] = (BGP *)calloc(100, (sizeof(BGP)));
 	bgp->bgpc[*counter+1]->cmd = (char *) calloc(100, (strlen(data[0])+1) * sizeof(char));
 	strcpy(bgp->bgpc[*counter+1]->cmd, data[0]); 
 	bgp->bgpc[*counter+1]->pid = pid;
 	bgp->bgpc[*counter+1]->position = *counter+1;
 	*counter = *counter + 1;
+	printf("[%d]\t%d\n",*counter+1, pid);
 	
 	if(pid == -1){
 		//error
@@ -110,7 +106,7 @@ void bgProcess(char** data, BGcontain *bgp, int *counter){
 	}
 }
 
-void checkBGP(int counter, BGcontain bg){
+void checkBGP(int counter, BGcontain* bg){
 	//if a process is finished then set its position to -1
 	printf("Checking if bgp is done...\n");
 	int status;
@@ -118,16 +114,17 @@ void checkBGP(int counter, BGcontain bg){
 	int g;
 	//printf("b %d\n", bg.bgpc[0]->pid);
 	for(i=0; i<counter+1; i++){
-		g = waitpid(bg.bgpc[i]->pid, &status, WNOHANG);
+		g = waitpid(bg->bgpc[i]->pid, &status, WNOHANG);
 		printf("a %d\n", g);
 		//check if position is -1
 		if(g == 0){ //not done
 			//dont do anything
 		}
-		else if(g == bg.bgpc[i]->pid) {
+		else if(g == bg->bgpc[i]->pid) {
 			//is done
 			printf("d\n");
-			printf("[%d]+\t %s\n", bg.bgpc[i]->position, bg.bgpc[i]->cmd);
+			printf("[%d]+\t %s\n", bg->bgpc[i]->position, bg->bgpc[i]->cmd);
+			bg->bgpc[i]->position = -1;
 			//change position to -1
 		}
 	}
