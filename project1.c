@@ -63,7 +63,7 @@ int main(){
 	//string for concatonated path names
 	char * concat = (char *)malloc(sizeof(char)*size);
 	//string containing command + args
-	char ** cmd = (char **)malloc(sizeof(char)*size);
+	char ** cmd = calloc(1000, sizeof(char));
 
 	int loopcount = 0;
 	int firstIns = 0;
@@ -182,14 +182,14 @@ int main(){
 	built_in = true;
 	//break;
     }
-    else {
-      	//ptr = realpath(instr.tokens[0], thePath); 
-	//fullPath = findPath(instr.tokens[0], getenv("PATH"));
-	fullPath = findPath(instr.tokens[0], getenv("PATH"));
+    else if(fullPath = realpath(instr.tokens[0], buf)){
 	printf("%s\n", fullPath);
         cmd[0] = fullPath;
 	getTokens(&instr, cmd);
       	my_execute(cmd);
+    }
+    else{
+	printf("%s\n", "Error: Invalid command");
     }
     /*if(!file_flag){
       printf("%s\n", "File does not exist or is not regular");
